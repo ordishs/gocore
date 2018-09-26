@@ -63,3 +63,11 @@ func TestGetNotExistingKeyWithDefaultInt(t *testing.T) {
 		t.Errorf("Expected ok=false and got ok=%+v", ok)
 	}
 }
+
+func TestGetOutboundIP(t *testing.T) {
+	ip, err := GetOutboundIP()
+	if err != nil {
+		t.Errorf("Expected IP, got %+v", err)
+	}
+	t.Logf("IP: %s", ip)
+}
