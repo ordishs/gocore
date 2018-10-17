@@ -32,8 +32,8 @@ func (l *Logger) Errorf(msg string, args ...interface{}) {
 	l.output("ERROR", "red", msg, args...)
 }
 
-// Fatalf Comment
-func (l *Logger) Fatalf(args ...interface{}) {
+// Fatal Comment
+func (l *Logger) Fatal(args ...interface{}) {
 	log.Fatal(args...)
 }
 
