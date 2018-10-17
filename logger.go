@@ -3,6 +3,7 @@ package gocore
 import (
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"runtime/debug"
 	"strings"
@@ -30,6 +31,12 @@ func (l *Logger) Errorf(msg string, args ...interface{}) {
 	args = append(args, getStack())
 	msg = msg + "\n%s"
 	l.output("ERROR", "red", msg, args...)
+}
+
+// Fatalf Comment
+func (l *Logger) Fatalf(msg string, args ...interface{}) {
+	l.output("FATAL", "orange", msg, args...)
+	os.Exit(1)
 }
 
 func getStack() string {
