@@ -1,4 +1,4 @@
-package logger
+package gocore
 
 import (
 	"bufio"
@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-// HandleIncomingMessage Comment
-func (l *Logger) HandleIncomingMessage(c net.Conn) {
+func (l *Logger) handleIncomingMessage(c net.Conn) {
 	go func() {
 		scanner := bufio.NewScanner(c)
 		for scanner.Scan() {
@@ -40,8 +39,8 @@ func (l *Logger) HandleIncomingMessage(c net.Conn) {
 }
 
 func (l *Logger) handleTrace(r []string, c net.Conn) {
-	l.Conf.Mu.Lock()
-	defer l.Conf.Mu.Unlock()
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
 
 	if len(r) <= 1 {
 		_, err := c.Write([]byte("Invalid number of parameters. Use 'help' to see the syntax.\n"))
@@ -52,7 +51,7 @@ func (l *Logger) handleTrace(r []string, c net.Conn) {
 	}
 
 	if r[1] == "off" {
-		delete(l.Conf.Trace.Sockets, c)
+		delete(l.conf.trace.sockets, c)
 	}
 
 	reg := ""
@@ -61,14 +60,14 @@ func (l *Logger) handleTrace(r []string, c net.Conn) {
 	}
 
 	if r[1] == "on" {
-		l.Conf.Trace.Sockets[c] = reg
+		l.conf.trace.sockets[c] = reg
 	}
 
 }
 
 func (l *Logger) handleDebug(r []string, c net.Conn) {
-	l.Conf.Mu.Lock()
-	defer l.Conf.Mu.Unlock()
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
 
 	if len(r) <= 1 {
 		_, err := c.Write([]byte("Invalid number of parameters. Use 'help' to see the syntax.\n"))
@@ -87,8 +86,8 @@ func (l *Logger) handleDebug(r []string, c net.Conn) {
 	}
 
 	if r[1] == "off" {
-		l.Conf.Debug.Enabled = false
-		l.Conf.Debug.Regex = ""
+		l.conf.debug.enabled = false
+		l.conf.debug.regex = ""
 		l.sendStatus(c)
 		return
 	}
@@ -98,20 +97,20 @@ func (l *Logger) handleDebug(r []string, c net.Conn) {
 		reg = r[2]
 	}
 
-	l.Conf.Debug.Enabled = true
-	l.Conf.Debug.Regex = reg
+	l.conf.debug.enabled = true
+	l.conf.debug.regex = reg
 
 	l.sendStatus(c)
 
 }
 
 func (l *Logger) sendStatus(c net.Conn) {
-	l.Conf.Mu.RLock()
-	defer l.Conf.Mu.RUnlock()
+	l.conf.mu.RLock()
+	defer l.conf.mu.RUnlock()
 
 	res := fmt.Sprintf(
 		"Debug status is set to %t, with a regex of '%s'\n",
-		l.Conf.Debug.Enabled, l.Conf.Debug.Regex,
+		l.conf.debug.enabled, l.conf.debug.regex,
 	)
 	_, err := c.Write([]byte(res))
 	if err != nil {

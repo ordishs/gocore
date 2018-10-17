@@ -1,4 +1,4 @@
-package logger
+package gocore
 
 import (
 	"fmt"
@@ -40,30 +40,30 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 	print := true
 
 	if level == "DEBUG" {
-		match, _ := regexp.MatchString(l.Conf.Debug.Regex, msg)
-		if !l.Conf.Debug.Enabled || !match {
+		match, _ := regexp.MatchString(l.conf.debug.regex, msg)
+		if !l.conf.debug.enabled || !match {
 			print = false
 		}
 	}
 
-	if l.Colour && colour != "" {
+	if l.colour && colour != "" {
 		level = ansi.Color(level, colour)
 	}
 
-	format := fmt.Sprintf("%s %s. %s: %s\n", l.PackageName, l.ServiceName, level, msg)
+	format := fmt.Sprintf("%s %s. %s: %s\n", l.packageName, l.serviceName, level, msg)
 
 	if print {
 		log.Printf(format, args...)
 	}
 
-	if len(l.Conf.Trace.Sockets) > 0 {
-		for s, r := range l.Conf.Trace.Sockets {
+	if len(l.conf.trace.sockets) > 0 {
+		for s, r := range l.conf.trace.sockets {
 			match, _ := regexp.MatchString(r, msg)
 			if match {
 				_, err := s.Write([]byte(fmt.Sprintf(format, args...)))
 				if err != nil {
 					log.Printf("Writing client error: %+v", err)
-					delete(l.Conf.Trace.Sockets, s)
+					delete(l.conf.trace.sockets, s)
 				}
 			}
 		}

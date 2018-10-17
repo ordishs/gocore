@@ -1,4 +1,4 @@
-package logger
+package gocore
 
 import (
 	"log"
@@ -6,8 +6,7 @@ import (
 	"os"
 )
 
-// HandleShutdown Comment
-func (l *Logger) HandleShutdown(ln net.Listener, c chan os.Signal) {
+func (l *Logger) handleShutdown(ln net.Listener, c chan os.Signal) {
 	// Shut down the socket if the application closes
 	go func() {
 		<-c

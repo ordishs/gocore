@@ -11,8 +11,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	l "./logger"
 )
 
 func init() {
@@ -25,15 +23,15 @@ func init() {
 }
 
 // NewLogger comment
-func NewLogger(packageName string, serviceName string, enableColours bool) *l.Logger {
-	logger := l.Logger{
-		PackageName: strings.ToUpper(packageName),
-		ServiceName: strings.ToUpper(serviceName),
-		Colour:      enableColours,
-		Conf: l.Config{
-			Mu: new(sync.RWMutex),
-			Trace: l.TraceSettings{
-				Sockets: make(map[net.Conn]string),
+func NewLogger(packageName string, serviceName string, enableColours bool) *Logger {
+	logger := Logger{
+		packageName: strings.ToUpper(packageName),
+		serviceName: strings.ToUpper(serviceName),
+		colour:      enableColours,
+		conf: loggerConfig{
+			mu: new(sync.RWMutex),
+			trace: traceSettings{
+				sockets: make(map[net.Conn]string),
 			},
 		},
 	}
@@ -55,7 +53,7 @@ func NewLogger(packageName string, serviceName string, enableColours bool) *l.Lo
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 
-		logger.HandleShutdown(ln, ch)
+		logger.handleShutdown(ln, ch)
 
 		for {
 			fd, err := ln.Accept()
@@ -63,7 +61,7 @@ func NewLogger(packageName string, serviceName string, enableColours bool) *l.Lo
 				log.Fatalf("LOGGER: Accept error: %+v", err)
 			}
 
-			logger.HandleIncomingMessage(fd)
+			logger.handleIncomingMessage(fd)
 		}
 
 	}()
