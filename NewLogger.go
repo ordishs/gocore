@@ -15,7 +15,6 @@ import (
 
 func init() {
 	socketDIR, _ := Config().Get("socketDIR")
-
 	err := os.MkdirAll(socketDIR, os.ModePerm)
 	if err != nil {
 		log.Printf("ERROR: Unable to make socket directory %s: %+v", socketDIR, err)
