@@ -20,9 +20,10 @@ type traceSettings struct {
 
 // LoggerConfig comment
 type loggerConfig struct {
-	mu    *sync.RWMutex
-	debug debugSettings
-	trace traceSettings
+	mu     *sync.RWMutex
+	socket net.Listener
+	debug  debugSettings
+	trace  traceSettings
 }
 
 // Logger comment

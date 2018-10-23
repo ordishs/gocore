@@ -34,7 +34,16 @@ func (l *Logger) Errorf(msg string, args ...interface{}) {
 
 // Fatal Comment
 func (l *Logger) Fatal(args ...interface{}) {
+	l.output("FATAL", "cyan", "%s", args...)
+	l.conf.socket.Close()
 	log.Fatal(args...)
+}
+
+// Panic Comment
+func (l *Logger) Panic(args ...interface{}) {
+	l.output("PANIC", "magenta", "%s", args...)
+	l.conf.socket.Close()
+	log.Panic(args...)
 }
 
 func getStack() string {

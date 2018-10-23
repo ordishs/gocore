@@ -48,6 +48,8 @@ func NewLogger(packageName string, serviceName string, enableColours bool) *Logg
 		if err != nil {
 			log.Fatalf("LOGGER: listen error: %+v", err)
 		}
+		// Add the socket so we can close it down when Fatal or Panic are called
+		logger.conf.socket = ln
 
 		logger.Infof("Socket created. Connect with 'nc -U %s'", n)
 
