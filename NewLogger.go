@@ -13,8 +13,13 @@ import (
 	"time"
 )
 
+var socketDIR string
+
 func init() {
-	socketDIR, _ := Config().Get("socketDIR")
+	socketDIR, _ = Config().Get("socketDIR")
+	if socketDIR == "" {
+		socketDIR = "/tmp/maestro"
+	}
 	err := os.MkdirAll(socketDIR, os.ModePerm)
 	if err != nil {
 		log.Printf("ERROR: Unable to make socket directory %s: %+v", socketDIR, err)
@@ -37,17 +42,14 @@ func NewLogger(packageName string, serviceName string, enableColours bool) *Logg
 
 	// Run a listener on a Unix socket
 	go func() {
-		n := fmt.Sprintf(
-			"/tmp/sockets/%s.%s%d.sock",
-			strings.ToUpper(packageName), strings.ToUpper(serviceName), getRand(),
-		)
+		n := fmt.Sprintf("%s/%s.%s%d.sock", socketDIR, strings.ToUpper(packageName), strings.ToUpper(serviceName), getRand())
 
 		ln, err := net.Listen("unix", n)
 		if err != nil {
 			log.Fatalf("LOGGER: listen error: %+v", err)
 		}
 
-		log.Printf("Socket created. Connect with 'nc -U %s'", n)
+		logger.Infof("Socket created. Connect with 'nc -U %s'", n)
 
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
