@@ -61,7 +61,7 @@ func NewLogger(packageName string, serviceName string, enableColours bool) *Logg
 		for {
 			fd, err := ln.Accept()
 			if err != nil {
-				logger.Fatalf("LOGGER: Accept error: %+v", err)
+				logger.Fatalf("Accept error: %+v", err)
 			}
 
 			logger.handleIncomingMessage(fd)

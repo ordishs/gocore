@@ -32,8 +32,8 @@ func (l *Logger) Errorf(msg string, args ...interface{}) {
 	l.output("ERROR", "red", msg, args...)
 }
 
-// Fatalf Comment
-func (l *Logger) Fatalf(args ...interface{}) {
+// Fatal Comment
+func (l *Logger) Fatal(args ...interface{}) {
 	l.output("FATAL", "cyan", "%s", args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
@@ -41,9 +41,27 @@ func (l *Logger) Fatalf(args ...interface{}) {
 	log.Fatal(args...)
 }
 
-// Panicf Comment
-func (l *Logger) Panicf(args ...interface{}) {
+// Fatalf Comment
+func (l *Logger) Fatalf(msg string, args ...interface{}) {
+	l.output("FATAL", "cyan", msg, args...)
+	if l.conf.socket != nil {
+		l.conf.socket.Close()
+	}
+	log.Fatal(args...)
+}
+
+// Panic Comment
+func (l *Logger) Panic(args ...interface{}) {
 	l.output("PANIC", "magenta", "%s", args...)
+	if l.conf.socket != nil {
+		l.conf.socket.Close()
+	}
+	log.Panic(args...)
+}
+
+// Panicf Comment
+func (l *Logger) Panicf(msg string, args ...interface{}) {
+	l.output("PANIC", "magenta", msg, args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
