@@ -11,6 +11,14 @@ var logger = gocore.NewLogger("test", "main", true)
 func main() {
 	ticker := time.NewTicker(1 * time.Second)
 	for range ticker.C {
-		logger.Debugf("Debug")
+		logger.Debugf(`DEBUG for %s
+
+		workerGroup: %s
+		uniqueID:    %s
+					`,
+			"req.JobId",
+			"testWorkerGroup",
+			"uniqueID",
+		)
 	}
 }

@@ -76,7 +76,7 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 	print := true
 
 	if level == "DEBUG" {
-		match, _ := regexp.MatchString(l.conf.debug.regex, msg)
+		match, _ := regexp.MatchString(l.conf.debug.regex, fmt.Sprintf(msg, args...))
 		if !l.conf.debug.enabled || !match {
 			print = false
 		}
@@ -94,7 +94,7 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 
 	if len(l.conf.trace.sockets) > 0 {
 		for s, r := range l.conf.trace.sockets {
-			match, _ := regexp.MatchString(r, msg)
+			match, _ := regexp.MatchString(r, fmt.Sprintf(msg, args...))
 			if match {
 				_, err := s.Write([]byte(fmt.Sprintf(format, args...)))
 				if err != nil {
