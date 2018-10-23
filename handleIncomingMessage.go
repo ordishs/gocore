@@ -3,7 +3,6 @@ package gocore
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 )
@@ -31,7 +30,7 @@ func (l *Logger) handleIncomingMessage(c net.Conn) {
 			default:
 				_, err := c.Write([]byte(fmt.Sprintf("Command not found: %s\n", cmd)))
 				if err != nil {
-					log.Printf("Writing client error: %+v", err)
+					l.Errorf("Writing client error: %+v", err)
 				}
 			}
 		}
@@ -45,7 +44,7 @@ func (l *Logger) handleTrace(r []string, c net.Conn) {
 	if len(r) <= 1 {
 		_, err := c.Write([]byte("Invalid number of parameters. Use 'help' to see the syntax.\n"))
 		if err != nil {
-			log.Printf("Writing client error: %+v", err)
+			l.Errorf("Writing client error: %+v", err)
 		}
 		return
 	}
@@ -72,7 +71,7 @@ func (l *Logger) handleDebug(r []string, c net.Conn) {
 	if len(r) <= 1 {
 		_, err := c.Write([]byte("Invalid number of parameters. Use 'help' to see the syntax.\n"))
 		if err != nil {
-			log.Printf("Writing client error: %+v", err)
+			l.Errorf("Writing client error: %+v", err)
 		}
 		return
 	}
@@ -80,7 +79,7 @@ func (l *Logger) handleDebug(r []string, c net.Conn) {
 	if r[1] != "off" && r[1] != "on" {
 		_, err := c.Write([]byte("Second parameter must be 'on' or 'off'\n"))
 		if err != nil {
-			log.Printf("Writing client error: %+v", err)
+			l.Errorf("Writing client error: %+v", err)
 		}
 		return
 	}
@@ -114,7 +113,7 @@ func (l *Logger) sendStatus(c net.Conn) {
 	)
 	_, err := c.Write([]byte(res))
 	if err != nil {
-		log.Printf("Writing client error: %+v", err)
+		l.Errorf("Writing client error: %+v", err)
 	}
 }
 
@@ -150,6 +149,6 @@ func (l *Logger) getCommands(c net.Conn) {
 
 	_, err := c.Write([]byte(res))
 	if err != nil {
-		log.Printf("Writing client error: %+v", err)
+		l.Errorf("Writing client error: %+v", err)
 	}
 }

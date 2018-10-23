@@ -32,17 +32,21 @@ func (l *Logger) Errorf(msg string, args ...interface{}) {
 	l.output("ERROR", "red", msg, args...)
 }
 
-// Fatal Comment
-func (l *Logger) Fatal(args ...interface{}) {
+// Fatalf Comment
+func (l *Logger) Fatalf(args ...interface{}) {
 	l.output("FATAL", "cyan", "%s", args...)
-	l.conf.socket.Close()
+	if l.conf.socket != nil {
+		l.conf.socket.Close()
+	}
 	log.Fatal(args...)
 }
 
-// Panic Comment
-func (l *Logger) Panic(args ...interface{}) {
+// Panicf Comment
+func (l *Logger) Panicf(args ...interface{}) {
 	l.output("PANIC", "magenta", "%s", args...)
-	l.conf.socket.Close()
+	if l.conf.socket != nil {
+		l.conf.socket.Close()
+	}
 	log.Panic(args...)
 }
 
@@ -76,7 +80,7 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 			if match {
 				_, err := s.Write([]byte(fmt.Sprintf(format, args...)))
 				if err != nil {
-					log.Printf("Writing client error: %+v", err)
+					l.Errorf("Writing client error: %+v", err)
 					delete(l.conf.trace.sockets, s)
 				}
 			}

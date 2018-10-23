@@ -46,7 +46,7 @@ func NewLogger(packageName string, serviceName string, enableColours bool) *Logg
 
 		ln, err := net.Listen("unix", n)
 		if err != nil {
-			log.Fatalf("LOGGER: listen error: %+v", err)
+			logger.Fatalf("LOGGER: listen error: %+v", err)
 		}
 		// Add the socket so we can close it down when Fatal or Panic are called
 		logger.conf.socket = ln
@@ -61,7 +61,7 @@ func NewLogger(packageName string, serviceName string, enableColours bool) *Logg
 		for {
 			fd, err := ln.Accept()
 			if err != nil {
-				log.Fatalf("LOGGER: Accept error: %+v", err)
+				logger.Fatalf("LOGGER: Accept error: %+v", err)
 			}
 
 			logger.handleIncomingMessage(fd)
