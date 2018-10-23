@@ -65,9 +65,6 @@ func (l *Logger) handleTrace(r []string, c net.Conn) {
 }
 
 func (l *Logger) handleDebug(r []string, c net.Conn) {
-	l.conf.mu.Lock()
-	defer l.conf.mu.Unlock()
-
 	if len(r) <= 1 {
 		_, err := c.Write([]byte("Invalid number of parameters. Use 'help' to see the syntax.\n"))
 		if err != nil {
@@ -85,8 +82,7 @@ func (l *Logger) handleDebug(r []string, c net.Conn) {
 	}
 
 	if r[1] == "off" {
-		l.conf.debug.enabled = false
-		l.conf.debug.regex = ""
+		l.toggleDebug(false, "")
 		l.sendStatus(c)
 		return
 	}
@@ -96,11 +92,19 @@ func (l *Logger) handleDebug(r []string, c net.Conn) {
 		reg = r[2]
 	}
 
-	l.conf.debug.enabled = true
-	l.conf.debug.regex = reg
-
+	l.toggleDebug(true, reg)
 	l.sendStatus(c)
 
+}
+
+func (l *Logger) toggleDebug(enabled bool, regex string) {
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
+
+	l.conf.debug.enabled = enabled
+	l.conf.debug.regex = regex
+
+	return
 }
 
 func (l *Logger) sendStatus(c net.Conn) {
