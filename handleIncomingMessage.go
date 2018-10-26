@@ -61,7 +61,6 @@ func (l *Logger) handleTrace(r []string, c net.Conn) {
 	if r[1] == "on" {
 		l.conf.trace.sockets[c] = reg
 	}
-
 }
 
 func (l *Logger) handleDebug(r []string, c net.Conn) {

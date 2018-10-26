@@ -6,8 +6,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"regexp"
-	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -94,7 +92,7 @@ func (l *Logger) Warnf(msg string, args ...interface{}) {
 
 // Errorf comment
 func (l *Logger) Errorf(msg string, args ...interface{}) {
-	args = append(args, getStack())
+	args = append(args, l.getStack())
 	msg = msg + "\n%s"
 	l.output("ERROR", "red", msg, args...)
 }
@@ -135,16 +133,11 @@ func (l *Logger) Panicf(msg string, args ...interface{}) {
 	log.Panic(args...)
 }
 
-func getStack() string {
-	return strings.Join(strings.Split(string(debug.Stack()), "\n")[7:], "\n")
-}
-
 func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 	print := true
 
 	if level == "DEBUG" {
-		match, _ := regexp.MatchString(l.conf.debug.regex, fmt.Sprintf(msg, args...))
-		if !l.conf.debug.enabled || !match {
+		if !l.isDebugEnabled() || !l.isRegexMatch(msg, args...) {
 			print = false
 		}
 	}
@@ -159,14 +152,5 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 		log.Printf(format, args...)
 	}
 
-	for s, r := range l.conf.trace.sockets {
-		match, _ := regexp.MatchString(r, fmt.Sprintf(msg, args...))
-		if match {
-			_, e := s.Write([]byte(fmt.Sprintf(format, args...)))
-			if e != nil {
-				log.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
-				delete(l.conf.trace.sockets, s)
-			}
-		}
-	}
+	l.sendToTrace(format, msg, args...)
 }
