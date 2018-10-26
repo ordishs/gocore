@@ -29,7 +29,6 @@ type loggerConfig struct {
 // Logger comment
 type Logger struct {
 	packageName string
-	serviceName string
 	colour      bool
 	conf        loggerConfig
 }

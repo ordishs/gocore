@@ -3,22 +3,37 @@ package main
 import (
 	"time"
 
+	"./anotherpackage"
+	"./subpackage"
+
 	"github.com/ordishs/gocore"
 )
 
-var logger = gocore.NewLogger("test", "main", true)
+var logger = gocore.Log("TestPackage")
 
 func main() {
-	ticker := time.NewTicker(1 * time.Second)
-	for range ticker.C {
-		logger.Debugf(`DEBUG for %s
 
-		workerGroup: %s
-		uniqueID:    %s
-					`,
-			"req.JobId",
-			"testWorkerGroup",
-			"uniqueID",
-		)
-	}
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		for range ticker.C {
+			logger.Infof("This is a INFO with %s", "Args")
+		}
+	}()
+
+	go func() {
+		ticker2 := time.NewTicker(2 * time.Second)
+		for range ticker2.C {
+			anotherpackage.RunMe()
+		}
+	}()
+
+	go func() {
+		ticker3 := time.NewTicker(3 * time.Second)
+		for range ticker3.C {
+			subpackage.RunMe()
+		}
+	}()
+
+	waitCh := make(chan bool)
+	<-waitCh
 }
