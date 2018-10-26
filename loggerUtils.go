@@ -36,8 +36,8 @@ func (l *Logger) sendToTrace(format string, msg string, args ...interface{}) {
 	l.conf.mu.Lock()
 	defer l.conf.mu.Unlock()
 
-	for s := range l.conf.trace.sockets {
-		if l.isRegexMatch(msg, args...) {
+	for s, r := range l.conf.trace.sockets {
+		if l.isRegexMatch(r, fmt.Sprintf(msg, args...)) {
 			_, e := s.Write([]byte(fmt.Sprintf(format, args...)))
 			if e != nil {
 				log.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
@@ -47,7 +47,7 @@ func (l *Logger) sendToTrace(format string, msg string, args ...interface{}) {
 	}
 }
 
-func (l *Logger) isRegexMatch(msg string, args ...interface{}) bool {
-	match, _ := regexp.MatchString(l.conf.debug.regex, fmt.Sprintf(msg, args...))
+func (l *Logger) isRegexMatch(r string, msg string) bool {
+	match, _ := regexp.MatchString(r, msg)
 	return match
 }
