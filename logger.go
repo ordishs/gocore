@@ -46,10 +46,16 @@ func Log(packageName string) *Logger {
 		go func() {
 			n := fmt.Sprintf("%s/%s.sock", socketDIR, strings.ToUpper(packageName))
 
+			// Remove the file if it exists...
+			os.Remove(n)
+
 			ln, err := net.Listen("unix", n)
 			if err != nil {
 				logger.Fatalf("LOGGER: listen error: %+v", err)
 			}
+			defer ln.Close()
+			defer os.Remove(n)
+
 			// Add the socket so we can close it down when Fatal or Panic are called
 			logger.conf.socket = ln
 
