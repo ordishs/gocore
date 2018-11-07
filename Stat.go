@@ -37,13 +37,14 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	rootItem.printStatisticsHTML(w, "")
 }
 
-// StartServer comment
-func StartServer(addr string) {
+// StartStatsServer comment
+func StartStatsServer(addr string) {
 	fs := http.FileServer(http.Dir("."))
 	http.Handle("/js/", fs)
 	http.Handle("/css/", fs)
 	http.HandleFunc("/stats", handleStats)
 
+	log.Printf("Starting StatsServer on %s", addr)
 	var err = http.ListenAndServe(addr, nil)
 
 	if err != nil {

@@ -31,6 +31,6 @@ func main() {
 			h.AddTime(time.Now().UTC().UnixNano() - 1)
 		}
 	}()
-	gocore.StartServer("localhost:9001")
+	gocore.StartStatsServer("localhost:9001")
 
 }
