@@ -25,7 +25,7 @@ type Dependency struct {
 	Status  string `json:"status"`
 }
 
-// Report custom health status report
+// NHSReport custom health status report
 type NHSReport struct {
 	Dependencies []Dependency `json:"dependencies"`
 	Status       string       `json:"status"`
