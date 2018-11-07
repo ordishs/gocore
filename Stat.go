@@ -38,13 +38,13 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartServer comment
-func StartServer() {
+func StartServer(addr string) {
 	fs := http.FileServer(http.Dir("."))
 	http.Handle("/js/", fs)
 	http.Handle("/css/", fs)
 	http.HandleFunc("/stats", handleStats)
 
-	var err = http.ListenAndServe(":8080", nil)
+	var err = http.ListenAndServe(addr, nil)
 
 	if err != nil {
 		log.Panicln("Server failed starting. Error: %s", err)
@@ -63,7 +63,7 @@ func NewStat(key string) *Stat {
 	if !ok {
 		s = &Stat{
 			key:      key,
-			parent:   rootItem,
+			parent:   parent,
 			children: make(map[string]*Stat),
 		}
 		parent.children[key] = s
@@ -138,17 +138,6 @@ func (s *Stat) Average() int64 {
 	return s.total / s.count
 }
 
-// public static String formatPlainString(BigDecimal bd) {
-// 	DecimalFormat df = new DecimalFormat("#,##0.00")
-// 		df.setMaximumFractionDigits(2)
-
-// 		df.setMinimumFractionDigits(2)
-
-// 		df.setGroupingUsed(false)
-
-// 		return df.format(bd)
-// }
-
 func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
 	fmt.Fprintf(p, "<html><head>\r\n")
 	fmt.Fprintf(p, "<title>\r\n")
@@ -195,10 +184,10 @@ func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
 	fmt.Fprintf(p, "</td>\r\n")
 	// 		// New button
 	fmt.Fprintf(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")
-	fmt.Fprintf(p, "<form border='0' cellpadding='0'>\r\n")
+	// fmt.Fprintf(p, "<form border='0' cellpadding='0'>\r\n")
 	// 		// Using location.replace here so that the history buffer is not messed up for going back a page.
-	fmt.Fprintf(p, "<input type='button' value='  Reset Statistics  ' onClick='window.location.replace(\"resetstatistics.html?%s\")'>\r\n", keysParam)
-	fmt.Fprintf(p, "</form>\r\n")
+	// fmt.Fprintf(p, "<input type='button' value='  Reset Statistics  ' onClick='window.location.replace(\"resetstatistics.html?%s\")'>\r\n", keysParam)
+	// fmt.Fprintf(p, "</form>\r\n")
 	fmt.Fprintf(p, "</td>\r\n")
 	fmt.Fprintf(p, "</tr>\r\n")
 	fmt.Fprintf(p, "</table>\r\n")
@@ -222,33 +211,9 @@ func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
 
 	fmt.Fprintf(p, "<tbody>\r\n")
 
-	// 		DecimalFormat df = new DecimalFormat("#,##0")
-	// 		SimpleDateFormat sdf = new SimpleDateFormat("E yyyy-MM-dd HH:mm:ss.SSS z")
-	// 		SimpleDateFormat sdfUSLong = new SimpleDateFormat("MMM dd, yyyy hh:mm:ss a")
-
-	// 		StatisticalItem statisticalItem = StatisticalItem.getRoot()
-
-	// 		String[] keys = null;
-	// 		if (keysParam != null) {
-	// 				keysParam = keysParam.replaceAll("%20", " ")
-	// 				keys = keysParam.split(",")
-	// 				keysParam += ",";
-	// 		} else {
-	// 				keysParam = "";
-	// 		}
-	// 		if (keys != null) {
-	// 				for (String key : keys) {
-	// 						statisticalItem = statisticalItem.getStatisticalItem(key)
-	// 				}
-	// 		}
-
-	// 		long now = System.currentTimeMillis()
-	// 		String nowString = sdf.format(new Date(now))
 	now := time.Now().UTC()
-	// 		String initTime = sdf.format(new Date(StatisticalItem.getInitTime()))
-	// 		String age = DateUtils.humanTime(now - StatisticalItem.getInitTime())
-	age := "n/a"
-	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime, age)
+
+	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 03:04:05.000"), HumanTime(time.Since(initTime)))
 
 	for key, item := range s.getRoot().children {
 		fmt.Fprintf(p, "<tr>\r\n")
@@ -267,8 +232,8 @@ func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.minNanos)
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.maxNanos)
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.Average())
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.firstTime)
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.lastTime)
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.firstTime.Format("2006-01-02 03:04:05.000"))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.lastTime.Format("2006-01-02 03:04:05.000"))
 		fmt.Fprintf(p, "</tr>\r\n")
 	}
 
@@ -281,11 +246,11 @@ func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
 	fmt.Fprintf(p, "</tbody>\r\n")
 
 	fmt.Fprintf(p, "</table>\r\n")
-	fmt.Fprintf(p, "<p>Report time: %s</p>\r\n", now)
+	fmt.Fprintf(p, "<p>Report time: %s</p>\r\n", now.Format("2006-01-02 03:04:05.000"))
 	fmt.Fprintf(p, "<div align='right'>")
-	fmt.Fprintf(p, "<form>\r\n\r\n")
-	fmt.Fprintf(p, "<input type='button' value='  Back  ' onClick='history.go(-1)'>\r\n")
-	fmt.Fprintf(p, "</form>\r\n")
+	// fmt.Fprintf(p, "<form>\r\n\r\n")
+	// fmt.Fprintf(p, "<input type='button' value='  Back  ' onClick='history.go(-1)'>\r\n")
+	// fmt.Fprintf(p, "</form>\r\n")
 	fmt.Fprintf(p, "</div>\r\n")
 	fmt.Fprintf(p, "</body></html>\r\n")
 
