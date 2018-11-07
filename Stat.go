@@ -46,7 +46,7 @@ func StartStatsServer(addr string) {
 	http.Handle("/css/", fs)
 	http.HandleFunc("/stats", handleStats)
 
-	log.Printf("Starting StatsServer on %s", addr)
+	logger.Infof("Starting StatsServer on http://%s/stats", addr)
 	var err = http.ListenAndServe(addr, nil)
 
 	if err != nil {
@@ -92,6 +92,7 @@ func (s *Stat) AddTime(startNanos int64) int64 {
 	defer s.mu.Unlock()
 
 	s.lastTime = now
+	s.lastNanos = diff
 
 	if s.count == 0 {
 		s.firstTime = now
