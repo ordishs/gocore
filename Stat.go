@@ -39,12 +39,18 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	rootItem.printStatisticsHTML(w, rootItem, "")
 }
 
+func resetStats(w http.ResponseWriter, r *http.Request) {
+	rootItem.reset()
+	http.Redirect(w, r, "/stats", http.StatusSeeOther)
+}
+
 // StartStatsServer comment
 func StartStatsServer(addr string) {
 	fs := http.FileServer(http.Dir("."))
 	http.Handle("/js/", fs)
 	http.Handle("/css/", fs)
 	http.HandleFunc("/stats", handleStats)
+	http.HandleFunc("/reset", resetStats)
 
 	logger.Infof("Starting StatsServer on http://%s/stats", addr)
 	var err = http.ListenAndServe(addr, nil)
@@ -186,7 +192,6 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "</head>\r\n")
 	fmt.Fprintf(p, "<body>\r\n")
 
-	// 		// 10/03/14 (SRL) - Adding of a reset button
 	fmt.Fprintf(p, "<table width='100%'>\r\n")
 	fmt.Fprintf(p, "<tr>\r\n")
 	// 		// Title
@@ -197,10 +202,10 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "</td>\r\n")
 	// 		// New button
 	fmt.Fprintf(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")
-	// fmt.Fprintf(p, "<form border='0' cellpadding='0'>\r\n")
+	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='reset' method='get'>\r\n")
 	// 		// Using location.replace here so that the history buffer is not messed up for going back a page.
-	// fmt.Fprintf(p, "<input type='button' value='  Reset Statistics  ' onClick='window.location.replace(\"resetstatistics.html?%s\")'>\r\n", keysParam)
-	// fmt.Fprintf(p, "</form>\r\n")
+	fmt.Fprintf(p, "<input type='submit' value='Reset Statistics'>\r\n")
+	fmt.Fprintf(p, "</form>\r\n")
 	fmt.Fprintf(p, "</td>\r\n")
 	fmt.Fprintf(p, "</tr>\r\n")
 	fmt.Fprintf(p, "</table>\r\n")
