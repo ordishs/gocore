@@ -34,7 +34,9 @@ var (
 )
 
 func handleStats(w http.ResponseWriter, r *http.Request) {
-	rootItem.printStatisticsHTML(w, "")
+	//rootItem.mu.RLock()
+	//defer rootItem.mu.RUnlock()
+	rootItem.printStatisticsHTML(w, rootItem, "")
 }
 
 // StartStatsServer comment
@@ -86,6 +88,9 @@ func (s *Stat) AddTime(startNanos int64) int64 {
 
 	diff := endNanos - startNanos
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.lastTime = now
 
 	if s.count == 0 {
@@ -108,6 +113,9 @@ func (s *Stat) AddTime(startNanos int64) int64 {
 }
 
 func (s *Stat) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.firstNanos = 0
 	s.lastNanos = 0
 	s.minNanos = 0
@@ -132,6 +140,9 @@ func (s *Stat) currentTimeNanos() int64 {
 
 // Average comment
 func (s *Stat) Average() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	if s.count == 0 {
 		return 0
 	}
@@ -139,7 +150,7 @@ func (s *Stat) Average() int64 {
 	return s.total / s.count
 }
 
-func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
+func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "<html><head>\r\n")
 	fmt.Fprintf(p, "<title>\r\n")
 	fmt.Fprintf(p, "Maestro Statistics\r\n")
@@ -214,9 +225,11 @@ func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
 
 	now := time.Now().UTC()
 
-	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 03:04:05.000"), HumanTime(time.Since(initTime)))
+	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), HumanTime(time.Since(initTime)))
 
-	for key, item := range s.getRoot().children {
+	for key, item := range root.children {
+		item.mu.RLock()
+
 		fmt.Fprintf(p, "<tr>\r\n")
 		if len(item.children) > 0 {
 			context := ""
@@ -233,9 +246,11 @@ func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.minNanos)
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.maxNanos)
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.Average())
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.firstTime.Format("2006-01-02 03:04:05.000"))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.lastTime.Format("2006-01-02 03:04:05.000"))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.firstTime.Format("2006-01-02 15:04:05.000"))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.lastTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "</tr>\r\n")
+
+		item.mu.RUnlock()
 	}
 
 	// 		for (StatisticalItem item : statisticalItem.getChildren()) {
@@ -247,7 +262,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, keysParam string) {
 	fmt.Fprintf(p, "</tbody>\r\n")
 
 	fmt.Fprintf(p, "</table>\r\n")
-	fmt.Fprintf(p, "<p>Report time: %s</p>\r\n", now.Format("2006-01-02 03:04:05.000"))
+	fmt.Fprintf(p, "<p>Report time: %s</p>\r\n", now.Format("2006-01-02 15:04:05.000"))
 	fmt.Fprintf(p, "<div align='right'>")
 	// fmt.Fprintf(p, "<form>\r\n\r\n")
 	// fmt.Fprintf(p, "<input type='button' value='  Back  ' onClick='history.go(-1)'>\r\n")
