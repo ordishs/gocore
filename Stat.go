@@ -34,8 +34,8 @@ var (
 )
 
 func handleStats(w http.ResponseWriter, r *http.Request) {
-	//rootItem.mu.RLock()
-	//defer rootItem.mu.RUnlock()
+	rootItem.mu.RLock()
+	defer rootItem.mu.RUnlock()
 	rootItem.printStatisticsHTML(w, rootItem, "")
 }
 
