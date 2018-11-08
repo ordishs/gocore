@@ -17,14 +17,15 @@ const (
 	filename = "settings.conf"
 )
 
-type configuration struct {
+// Configuration comment
+type Configuration struct {
 	confs   map[string]string
 	context string
 	mu      sync.RWMutex
 }
 
 var (
-	c *configuration
+	c *Configuration
 )
 
 // GetOutboundIP comment
@@ -43,9 +44,9 @@ func GetOutboundIP() (ip net.IP, err error) {
 }
 
 // Config comment
-func Config() *configuration {
+func Config() *Configuration {
 	if c == nil {
-		c = new(configuration)
+		c = new(Configuration)
 		c.mu.Lock()
 		defer c.mu.Unlock()
 
@@ -88,7 +89,7 @@ func Config() *configuration {
 }
 
 // Get (key, defaultValue)
-func (c *configuration) Get(key string, defaultValue ...string) (string, bool) {
+func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 	env := os.Getenv(key)
 	if env != "" {
 		return env, true
@@ -122,7 +123,8 @@ func (c *configuration) Get(key string, defaultValue ...string) (string, bool) {
 	return ret, false
 }
 
-func (c *configuration) GetInt(key string, defaultValue ...int) (int, bool) {
+// GetInt comment
+func (c *Configuration) GetInt(key string, defaultValue ...int) (int, bool) {
 	str, ok := c.Get(key)
 	if str == "" || !ok {
 		if len(defaultValue) > 0 {
@@ -138,7 +140,8 @@ func (c *configuration) GetInt(key string, defaultValue ...int) (int, bool) {
 	return i, ok
 }
 
-func (c *configuration) Stats() string {
+// Stats comment
+func (c *Configuration) Stats() string {
 	out := "\nSETTINGS_CONTEXT\n----------------\n"
 
 	if c.context != "" {
