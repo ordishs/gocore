@@ -66,18 +66,15 @@ func Config() *Configuration {
 		str := string(bytes)
 		lines := strings.Split(str, "\n")
 
-		c.confs = make(map[string]string, len(lines))
+		c.confs = make(map[string]string, 0)
 
 		for _, line := range lines {
 			if len(line) > 0 {
+				line = strings.Split(line, "#")[0]
 				pos := strings.Index(line, "=")
 				if pos != -1 {
 					key := strings.TrimSpace(line[:pos])
 					value := line[pos+1:]
-					pos = strings.Index(value, "#")
-					if pos != -1 {
-						value = value[:pos]
-					}
 					value = strings.TrimSpace(value)
 
 					c.confs[key] = value
@@ -161,20 +158,20 @@ func (c *Configuration) Stats() string {
 
 	out = out + "\n\nSETTINGS\n--------\n"
 	// Get a list of keys that do not have the SESSION_CONTEXT at the end
-	keys := make([]string, 0)
-	context := "." + c.context
-
-	for key := range c.confs {
-		if !strings.HasSuffix(key, context) {
-			keys = append(keys, key)
-		}
+	keysMap := make(map[string]struct{}, 0)
+	for item := range c.confs {
+		keysMap[strings.Split(item, ".")[0]] = struct{}{}
 	}
 
 	// Sort the keys...
-	sort.Strings(keys)
+	keysArr := make([]string, 0)
+	for k := range keysMap {
+		keysArr = append(keysArr, k)
+	}
+	sort.Strings(keysArr)
 
 	// Now walk through the keys and look them up
-	for _, k := range keys {
+	for _, k := range keysArr {
 		v, _ := c.Get(k)
 		out = out + fmt.Sprintf("%s=%s\n", k, v)
 	}
