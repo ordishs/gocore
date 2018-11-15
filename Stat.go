@@ -56,7 +56,7 @@ func StartStatsServer(addr string) {
 	var err = http.ListenAndServe(addr, nil)
 
 	if err != nil {
-		log.Panicln("Server failed starting. Error: %s", err)
+		logger.Panicf("Server failed starting. Error: %s", err)
 	}
 }
 
@@ -192,16 +192,16 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "</head>\r\n")
 	fmt.Fprintf(p, "<body>\r\n")
 
-	fmt.Fprintf(p, "<table width='100%'>\r\n")
+	fmt.Fprint(p, "<table width='100%'>\r\n")
 	fmt.Fprintf(p, "<tr>\r\n")
 	// 		// Title
-	fmt.Fprintf(p, "<td style='vertical-align:middle;width:50%'>\r\n")
+	fmt.Fprint(p, "<td style='vertical-align:middle;width:50%'>\r\n")
 	fmt.Fprintf(p, "<h1>\r\n")
 	fmt.Fprintf(p, "Maestro Statistics\r\n")
 	fmt.Fprintf(p, "</h1>\r\n")
 	fmt.Fprintf(p, "</td>\r\n")
 	// 		// New button
-	fmt.Fprintf(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")
+	fmt.Fprint(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")
 	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='reset' method='get'>\r\n")
 	// 		// Using location.replace here so that the history buffer is not messed up for going back a page.
 	fmt.Fprintf(p, "<input type='submit' value='Reset Statistics'>\r\n")

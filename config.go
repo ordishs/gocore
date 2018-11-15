@@ -103,15 +103,24 @@ func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 		ok  bool
 	)
 
+	// Start with a copy of the context, i.e. "live.eupriv"
+	k := key
 	if c.context != "" {
-		ret, ok = c.confs[key+"."+c.context]
+		k += "." + c.context
+	}
+	for !ok {
+		ret, ok = c.confs[k]
+		if ok {
+			break
+		} else {
+			pos := strings.LastIndex(k, ".")
+			if pos == -1 {
+				break
+			}
+			k = k[:pos]
+		}
 	}
 
-	if ok {
-		return ret, ok
-	}
-
-	ret, ok = c.confs[key]
 	if ok {
 		return ret, ok
 	}

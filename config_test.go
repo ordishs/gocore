@@ -1,6 +1,8 @@
 package gocore
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGetExistingKey(t *testing.T) {
 	name, ok := Config().Get("name")
