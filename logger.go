@@ -158,5 +158,5 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 		log.Printf(format, args...)
 	}
 
-	l.sendToTrace(format, msg, args...)
+	l.sendToTrace(format, msg, level, args...)
 }

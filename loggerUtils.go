@@ -32,12 +32,12 @@ func (l *Logger) isDebugEnabled() bool {
 	return l.conf.debug.enabled
 }
 
-func (l *Logger) sendToTrace(format string, msg string, args ...interface{}) {
+func (l *Logger) sendToTrace(format string, msg string, level string, args ...interface{}) {
 	l.conf.mu.Lock()
 	defer l.conf.mu.Unlock()
 
 	for s, r := range l.conf.trace.sockets {
-		if l.isRegexMatch(r, fmt.Sprintf(msg, args...)) {
+		if l.isRegexMatch(r, fmt.Sprintf(msg, args...)) || l.isRegexMatch(strings.ToLower(r), strings.ToLower(level)) {
 			_, e := s.Write([]byte(fmt.Sprintf(format, args...)))
 			if e != nil {
 				log.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))

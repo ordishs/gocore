@@ -143,6 +143,10 @@ func (l *Logger) getCommands(c net.Conn) {
 			cmd:         "help",
 			description: "Shows the available commands",
 		},
+		command{
+			cmd:         "quit",
+			description: "quit the socket window",
+		},
 	}
 
 	res := "Available Commands:\n"
