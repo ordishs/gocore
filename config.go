@@ -146,6 +146,20 @@ func (c *Configuration) GetInt(key string, defaultValue ...int) (int, bool) {
 	return i, ok
 }
 
+// GetBool comment
+func (c *Configuration) GetBool(key string) bool {
+	str, ok := c.Get(key)
+	if str == "" || !ok {
+		return false
+	}
+
+	i, err := strconv.ParseBool(str)
+	if err != nil {
+		return false
+	}
+	return i
+}
+
 // Stats comment
 func (c *Configuration) Stats() string {
 	out := "\nSETTINGS_CONTEXT\n----------------\n"
