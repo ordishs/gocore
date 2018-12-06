@@ -59,8 +59,12 @@ func Config() *Configuration {
 		f, _ := filepath.Abs(filename)
 		bytes, err := ioutil.ReadFile(f)
 		if err != nil {
-			log.Printf("Failed to read config ['%s'] - %s\n", f, err)
-			os.Exit(1)
+			f, _ := filepath.Abs(filepath.Join("..", filename))
+			bytes, err = ioutil.ReadFile(f)
+			if err != nil {
+				log.Printf("Failed to read config ['%s'] - %s\n", f, err)
+				os.Exit(1)
+			}
 		}
 
 		str := string(bytes)
