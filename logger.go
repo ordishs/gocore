@@ -69,7 +69,8 @@ func Log(packageName string) *Logger {
 			for {
 				fd, err := ln.Accept()
 				if err != nil {
-					logger.Fatalf("Accept error: %+v", err)
+					logger.Warnf("Accept error: %+v", err)
+					return
 				}
 
 				logger.handleIncomingMessage(fd)
