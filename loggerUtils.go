@@ -18,6 +18,7 @@ func (l *Logger) handleShutdown(ln net.Listener, c chan os.Signal) {
 		<-c
 		l.Infof("LOGGER: Shutting down unix socket for Logger")
 		ln.Close()
+		os.Exit(0)
 	}()
 }
 
