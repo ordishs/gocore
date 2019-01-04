@@ -82,9 +82,19 @@ func Log(packageName string) *Logger {
 	return logger
 }
 
+// Debug Comment
+func (l *Logger) Debug(msg string, args ...interface{}) {
+	l.output("DEBUG", "blue", "", args...)
+}
+
 // Debugf Comment
 func (l *Logger) Debugf(msg string, args ...interface{}) {
 	l.output("DEBUG", "blue", msg, args...)
+}
+
+// Info comment
+func (l *Logger) Info(args ...interface{}) {
+	l.output("INFO", "green", "", args...)
 }
 
 // Infof comment
@@ -92,13 +102,28 @@ func (l *Logger) Infof(msg string, args ...interface{}) {
 	l.output("INFO", "green", msg, args...)
 }
 
+// Warn comment
+func (l *Logger) Warn(msg string, args ...interface{}) {
+	l.output("WARN", "yellow", "", args...)
+}
+
 // Warnf comment
 func (l *Logger) Warnf(msg string, args ...interface{}) {
 	l.output("WARN", "yellow", msg, args...)
 }
 
+// Error comment
+func (l *Logger) Error(msg string, args ...interface{}) {
+	l.output("ERROR", "red", "", args...)
+}
+
 // Errorf comment
 func (l *Logger) Errorf(msg string, args ...interface{}) {
+	l.output("ERROR", "red", msg, args...)
+}
+
+// ErrorWithStack comment
+func (l *Logger) ErrorWithStack(msg string, args ...interface{}) {
 	args = append(args, l.getStack())
 	msg = msg + "\n%s"
 	l.output("ERROR", "red", msg, args...)
@@ -106,7 +131,7 @@ func (l *Logger) Errorf(msg string, args ...interface{}) {
 
 // Fatal Comment
 func (l *Logger) Fatal(args ...interface{}) {
-	l.output("FATAL", "cyan", "%s", args...)
+	l.output("FATAL", "cyan", "", args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
@@ -119,12 +144,12 @@ func (l *Logger) Fatalf(msg string, args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	log.Fatal(args...)
+	log.Fatal(fmt.Sprintf(msg, args...))
 }
 
 // Panic Comment
 func (l *Logger) Panic(args ...interface{}) {
-	l.output("PANIC", "magenta", "%s", args...)
+	l.output("PANIC", "magenta", "", args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
@@ -137,7 +162,7 @@ func (l *Logger) Panicf(msg string, args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	log.Panic(args...)
+	log.Panic(fmt.Sprintf(msg, args...))
 }
 
 func (l *Logger) output(level, colour, msg string, args ...interface{}) {
@@ -153,10 +178,19 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 		level = ansi.Color(level, colour)
 	}
 
-	format := fmt.Sprintf("%s - %s: %s\n", l.packageName, level, msg)
+	format := fmt.Sprintf("%s - %s:", l.packageName, level)
+	if msg != "" {
+		format = fmt.Sprintf("%s - %s: %s", l.packageName, level, msg)
+	}
 
 	if print {
-		log.Printf(format, args...)
+		if msg != "" {
+			log.Printf(format, args...)
+		} else {
+			m := []interface{}{format}
+			m = append(m, args...)
+			log.Println(m...)
+		}
 	}
 
 	l.sendToTrace(format, msg, level, args...)
