@@ -103,7 +103,7 @@ func (l *Logger) Infof(msg string, args ...interface{}) {
 }
 
 // Warn comment
-func (l *Logger) Warn(msg string, args ...interface{}) {
+func (l *Logger) Warn(args ...interface{}) {
 	l.output("WARN", "yellow", "", args...)
 }
 
@@ -113,7 +113,7 @@ func (l *Logger) Warnf(msg string, args ...interface{}) {
 }
 
 // Error comment
-func (l *Logger) Error(msg string, args ...interface{}) {
+func (l *Logger) Error(args ...interface{}) {
 	l.output("ERROR", "red", "", args...)
 }
 
