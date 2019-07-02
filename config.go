@@ -151,9 +151,12 @@ func (c *Configuration) GetInt(key string, defaultValue ...int) (int, bool) {
 }
 
 // GetBool comment
-func (c *Configuration) GetBool(key string) bool {
+func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
 	str, ok := c.Get(key)
 	if str == "" || !ok {
+		if len(defaultValue) > 0 {
+			return defaultValue[0]
+		}
 		return false
 	}
 
