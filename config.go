@@ -25,7 +25,8 @@ type Configuration struct {
 }
 
 var (
-	c *Configuration
+	c    *Configuration
+	once sync.Once
 )
 
 // GetOutboundIP comment
@@ -45,10 +46,8 @@ func GetOutboundIP() (ip net.IP, err error) {
 
 // Config comment
 func Config() *Configuration {
-	if c == nil {
+	once.Do(func() {
 		c = new(Configuration)
-		c.mu.Lock()
-		defer c.mu.Unlock()
 
 		// Set the context by checking the environment variable SETTINGS_CONTEXT
 		env := os.Getenv("SETTINGS_CONTEXT")
@@ -85,7 +84,8 @@ func Config() *Configuration {
 				}
 			}
 		}
-	}
+	})
+
 	return c
 }
 

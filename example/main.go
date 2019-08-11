@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/ordishs/gocore"
 )
@@ -50,5 +51,11 @@ func appCleanup() {
 
 func start() {
 	waitCh := make(chan bool)
+
+	go func() {
+		time.Sleep(2 * time.Second)
+		waitCh <- true
+	}()
+
 	<-waitCh
 }
