@@ -32,24 +32,29 @@ func (l *Logger) isDebugEnabled() bool {
 	return l.conf.debug.enabled
 }
 
-func (l *Logger) sendToTrace(format string, msg string, level string, args ...interface{}) {
+func (l *Logger) sendToTrace(s string, level string) {
 	l.conf.mu.Lock()
 	defer l.conf.mu.Unlock()
 
-	fullMsg := fmt.Sprintf(format, args...)
-	buf := make([]byte, 0)
-	buf = append(buf, fullMsg...)
-	if len(fullMsg) == 0 || fullMsg[len(fullMsg)-1] != '\n' {
-		buf = append(buf, '\n')
-	}
-
-	for s, r := range l.conf.trace.sockets {
-		if l.isRegexMatch(r, fmt.Sprintf(msg, args...)) || l.isRegexMatch(strings.ToLower(r), strings.ToLower(level)) {
-			_, e := s.Write(buf)
+	for sock, r := range l.conf.trace.sockets {
+		if l.isRegexMatch(r, s) || l.isRegexMatch(strings.ToLower(r), strings.ToLower(level)) {
+			_, e := sock.Write([]byte(s))
 			if e != nil {
 				log.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
-				delete(l.conf.trace.sockets, s)
+				delete(l.conf.trace.sockets, sock)
 			}
+		}
+	}
+}
+
+func (l *Logger) sendToSample(s string, level string) {
+
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
+
+	for _, sampler := range l.conf.samplers {
+		if l.isRegexMatch(sampler.Regex, s) || l.isRegexMatch(strings.ToLower(sampler.Regex), strings.ToLower(level)) {
+			sampler.Write(s)
 		}
 	}
 }

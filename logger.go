@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/mgutz/ansi"
 )
@@ -26,11 +27,14 @@ func init() {
 	}
 }
 
-var logger *Logger
+var (
+	logger     *Logger
+	loggerOnce sync.Once
+)
 
 // Log comment
 func Log(packageName string) *Logger {
-	if logger == nil {
+	loggerOnce.Do(func() {
 		logger = &Logger{
 			packageName: packageName,
 			colour:      true,
@@ -77,7 +81,8 @@ func Log(packageName string) *Logger {
 			}
 
 		}()
-	}
+
+	})
 
 	return logger
 }
@@ -193,5 +198,15 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 		}
 	}
 
-	l.sendToTrace(format, msg, level, args...)
+	s := time.Now().UTC().Format("2006-01-02 15:04:05.000 ")
+
+	s += fmt.Sprintf(format, args...)
+
+	if strings.HasSuffix(s, "\n") == false {
+		s += "\n"
+	}
+
+	l.sendToTrace(s, level)
+
+	l.sendToSample(s, level)
 }

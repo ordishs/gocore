@@ -3,15 +3,19 @@ package main
 import (
 	"time"
 
-	"./anotherpackage"
-	"./subpackage"
-
 	"github.com/ordishs/gocore"
 )
 
 var logger = gocore.Log("TestPackage")
 
 func main() {
+
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		for range ticker.C {
+			logger.Debugf("This is a DEBUG with %s", "Args")
+		}
+	}()
 
 	go func() {
 		ticker := time.NewTicker(3 * time.Second)
@@ -23,14 +27,14 @@ func main() {
 	go func() {
 		ticker2 := time.NewTicker(2 * time.Second)
 		for range ticker2.C {
-			anotherpackage.RunMe()
+			logger.Debugf("This is a another package log with %s", "Different Args")
 		}
 	}()
 
 	go func() {
 		ticker3 := time.NewTicker(3 * time.Second)
 		for range ticker3.C {
-			subpackage.RunMe()
+			logger.Warnf("This is a Subpackage log with %s", "Args")
 		}
 	}()
 

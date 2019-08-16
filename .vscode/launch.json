@@ -17,6 +17,20 @@
       
       "args": [],
       "showLog": true
+    },
+    {
+      "name": "Logger",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "remotePath": "",
+      "port": 9981,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/loggerExample/main.go",
+      "env": {},
+      
+      "args": [],
+      "showLog": true
     }
   ]
 }

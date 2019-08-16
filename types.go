@@ -3,6 +3,8 @@ package gocore
 import (
 	"net"
 	"sync"
+
+	"github.com/ordishs/gocore/sampler"
 )
 
 // DebugSettings Comment
@@ -13,17 +15,17 @@ type debugSettings struct {
 
 // TraceSettings Comment
 type traceSettings struct {
-	enabled bool
-	// String will be a Regex expression
+	// String will be a Regex expression for the relevant Conn
 	sockets map[net.Conn]string
 }
 
 // LoggerConfig comment
 type loggerConfig struct {
-	mu     *sync.RWMutex
-	socket net.Listener
-	debug  debugSettings
-	trace  traceSettings
+	mu       *sync.RWMutex
+	socket   net.Listener
+	debug    debugSettings
+	trace    traceSettings
+	samplers []*sampler.Sampler
 }
 
 // Logger comment
