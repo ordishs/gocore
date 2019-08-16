@@ -113,15 +113,20 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 				return
 			}
 		} else {
-			for i, j := range l.conf.samplers {
-				_, err := c.Write([]byte(fmt.Sprintf("  Samples %v %v.\n", i, j)))
-				if err != nil {
-					l.Errorf("Writing client error: %+v", err)
-					break
-				}
+			s := ""
+			for _, sampler := range l.conf.samplers {
+				s += fmt.Sprintf("  %s\n", sampler)
+			}
+			s += "\n"
+
+			_, err := c.Write([]byte(s))
+			if err != nil {
+				l.Errorf("Writing client error: %+v", err)
+				break
 			}
 		}
-	case "on":
+
+	case "start":
 		if len(r) < 4 || len(r) > 5 {
 			_, err := c.Write([]byte("  Invalid number of parameters. Use 'help' to see the syntax.\n\n"))
 			if err != nil {
@@ -153,7 +158,8 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 		l.conf.mu.Unlock()
 
 		l.sendStatus(c)
-	case "off":
+
+	case "stop":
 		if len(r) != 3 {
 			_, err := c.Write([]byte("  Invalid number of parameters. Use 'help' to see the syntax.\n\n"))
 			if err != nil {
@@ -288,7 +294,7 @@ func (l *Logger) sendStatus(c net.Conn) {
 		res += "  TRACE is OFF\n"
 	}
 
-	res += fmt.Sprintf("  %d SAMPLES configured\n", len(l.conf.samplers))
+	res += fmt.Sprintf("  %d SAMPLES running\n", len(l.conf.samplers))
 
 	res += "\n"
 
@@ -314,7 +320,7 @@ func (l *Logger) help(c net.Conn) {
 			description: "Turn on/off trace mode with an optional Regex pattern",
 		},
 		command{
-			cmd:         "sample [on <id> <filename> {regex} | off <id> | list] ",
+			cmd:         "sample [start <id> <filename> {regex} | stop <id> | list] ",
 			description: "Turn on/off samplers mode with an optional Regex pattern",
 		},
 		command{

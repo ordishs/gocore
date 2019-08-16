@@ -3,6 +3,7 @@ package sampler
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // Sampler struct
@@ -58,4 +59,17 @@ func (s *Sampler) Write(str string) {
 func (s *Sampler) Stop() {
 	// Closing the channel should get the go routine to end and call the defer s.f.Close()
 	close(s.ch)
+}
+
+func (s *Sampler) String() string {
+	abs, err := filepath.Abs(s.f.Name())
+	if err != nil {
+		abs = s.f.Name()
+	}
+
+	if s.Regex == "" {
+		return fmt.Sprintf("Sampler %s: writing all logs to %s", s.ID, abs)
+	}
+
+	return fmt.Sprintf("Sampler %s: writing logs that match %q to %s", s.ID, s.Regex, abs)
 }
