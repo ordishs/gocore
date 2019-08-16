@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/ordishs/gocore/utils"
 )
 
 // Stat comment
@@ -234,7 +236,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 
 	now := time.Now().UTC()
 
-	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), HumanTime(time.Since(initTime)))
+	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), utils.HumanTime(time.Since(initTime)))
 
 	for key, item := range root.children {
 		item.mu.RLock()
@@ -248,13 +250,13 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 			fmt.Fprintf(p, "<td>%s</td>\r\n", key)
 		}
 
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", HumanTimeUnit(item.total))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.total))
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.count)
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", HumanTimeUnit(item.firstNanos))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", HumanTimeUnit(item.lastNanos))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", HumanTimeUnit(item.minNanos))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", HumanTimeUnit(item.maxNanos))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", HumanTimeUnit(item.Average()))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.firstNanos))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.lastNanos))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.minNanos))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.maxNanos))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.Average()))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.firstTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.lastTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "</tr>\r\n")
