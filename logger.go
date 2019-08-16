@@ -19,7 +19,7 @@ var socketDIR string
 func init() {
 	socketDIR, _ = Config().Get("socketDIR")
 	if socketDIR == "" {
-		socketDIR = "/tmp/maestro"
+		socketDIR = "/tmp/gocore"
 	}
 	err := os.MkdirAll(socketDIR, os.ModePerm)
 	if err != nil {

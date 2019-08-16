@@ -160,7 +160,7 @@ func (s *Stat) Average() int64 {
 func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "<html><head>\r\n")
 	fmt.Fprintf(p, "<title>\r\n")
-	fmt.Fprintf(p, "Maestro Statistics\r\n")
+	fmt.Fprintf(p, "GoCore Statistics\r\n")
 	fmt.Fprintf(p, "</title>\r\n")
 	fmt.Fprintf(p, "<script type='text/javascript' src='/js/jquery-1.3.2.js'></script>")
 	fmt.Fprintf(p, "<script type='text/javascript' src='/js/jquery.tablesorter.js'></script>")
@@ -200,7 +200,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	// 		// Title
 	fmt.Fprint(p, "<td style='vertical-align:middle;width:50%'>\r\n")
 	fmt.Fprintf(p, "<h1>\r\n")
-	fmt.Fprintf(p, "Maestro Statistics\r\n")
+	fmt.Fprintf(p, "GoCore Statistics\r\n")
 	fmt.Fprintf(p, "</h1>\r\n")
 	fmt.Fprintf(p, "</td>\r\n")
 	// 		// New button
