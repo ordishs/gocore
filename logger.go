@@ -1,20 +1,57 @@
 package gocore
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"regexp"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/mgutz/ansi"
+	"github.com/ordishs/gocore/sampler"
+	"github.com/ordishs/gocore/utils"
 )
 
-var socketDIR string
+type debugSettings struct {
+	enabled bool
+	regex   string
+}
+
+// TraceSettings Comment
+type traceSettings struct {
+	// String will be a Regex expression for the relevant Conn
+	sockets map[net.Conn]string
+}
+
+// LoggerConfig comment
+type loggerConfig struct {
+	mu       *sync.RWMutex
+	socket   net.Listener
+	debug    debugSettings
+	trace    traceSettings
+	samplers []*sampler.Sampler
+}
+
+// Logger comment
+type Logger struct {
+	packageName string
+	colour      bool
+	conf        loggerConfig
+}
+
+var (
+	logger     *Logger
+	loggerOnce sync.Once
+	socketDIR  string
+)
 
 func init() {
 	socketDIR, _ = Config().Get("socketDIR")
@@ -26,11 +63,6 @@ func init() {
 		log.Printf("ERROR: Unable to make socket directory %s: %+v", socketDIR, err)
 	}
 }
-
-var (
-	logger     *Logger
-	loggerOnce sync.Once
-)
 
 // Log comment
 func Log(packageName string) *Logger {
@@ -85,6 +117,14 @@ func Log(packageName string) *Logger {
 	})
 
 	return logger
+}
+
+func (l *Logger) write(c io.Writer, s string) error {
+	_, err := c.Write([]byte(s))
+	if err != nil {
+		l.Errorf("Writing client error: %+v", err)
+	}
+	return err
 }
 
 // Debug Comment
@@ -209,4 +249,337 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 	l.sendToTrace(s, level)
 
 	l.sendToSample(s, level)
+}
+
+func (l *Logger) handleShutdown(ln net.Listener, c chan os.Signal) {
+	// Shut down the socket if the application closes
+	go func() {
+		<-c
+		l.Infof("LOGGER: Shutting down unix socket for Logger")
+		ln.Close()
+		os.Exit(0)
+	}()
+}
+
+func (l *Logger) getStack() string {
+	return strings.Join(strings.Split(string(debug.Stack()), "\n")[7:], "\n")
+}
+
+func (l *Logger) isDebugEnabled() bool {
+	l.conf.mu.RLock()
+	defer l.conf.mu.RUnlock()
+	return l.conf.debug.enabled
+}
+
+func (l *Logger) sendToTrace(s string, level string) {
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
+
+	for sock, r := range l.conf.trace.sockets {
+		if l.isRegexMatch(r, s) || l.isRegexMatch(strings.ToLower(r), strings.ToLower(level)) {
+			_, e := sock.Write([]byte(s))
+			if e != nil {
+				log.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
+				delete(l.conf.trace.sockets, sock)
+			}
+		}
+	}
+}
+
+func (l *Logger) sendToSample(s string, level string) {
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
+
+	for _, sampler := range l.conf.samplers {
+		if l.isRegexMatch(sampler.Regex, s) || l.isRegexMatch(strings.ToLower(sampler.Regex), strings.ToLower(level)) {
+			sampler.Write(s)
+		}
+	}
+}
+
+func (l *Logger) isRegexMatch(r string, msg string) bool {
+	match, _ := regexp.MatchString(r, msg)
+	return match
+}
+
+func (l *Logger) handleIncomingMessage(c net.Conn) {
+	l.welcome(c)
+	go func() {
+		scanner := bufio.NewScanner(c)
+		for scanner.Scan() {
+			cmd := scanner.Text()
+			s, err := utils.SplitArgs(cmd)
+			if err != nil {
+				l.write(c, fmt.Sprintf("  Cannot split command: %v\n\n", err))
+			}
+
+			switch s[0] {
+			case "debug":
+				l.handleDebugAndTrace("DEBUG", s, c)
+			case "trace":
+				l.handleDebugAndTrace("TRACE", s, c)
+			case "sample":
+				l.handleSample(s, c)
+			case "status":
+				l.sendStatus(c)
+			case "quit":
+				c.Close()
+				return
+			case "help":
+				l.help(c)
+			case "":
+
+			default:
+				l.write(c, fmt.Sprintf("  Command not found: %s\n\n", cmd))
+			}
+		}
+	}()
+}
+
+func (l *Logger) handleTrace(r []string, c net.Conn) {
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
+
+	if len(r) <= 1 {
+		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		return
+	}
+
+	if r[1] == "off" {
+		delete(l.conf.trace.sockets, c)
+	}
+
+	reg := ""
+	if len(r) == 3 {
+		reg = r[2]
+	}
+
+	if r[1] == "on" {
+		l.conf.trace.sockets[c] = reg
+	}
+}
+
+func (l *Logger) handleSample(r []string, c net.Conn) {
+
+	if len(r) <= 1 {
+		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		return
+	}
+
+	switch r[1] {
+	case "list":
+		if len(r) != 2 {
+			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			return
+		}
+
+		if len(l.conf.samplers) == 0 {
+			err := l.write(c, "  No running samples.\n\n")
+			if err != nil {
+				return
+			}
+		} else {
+			s := ""
+			for _, sampler := range l.conf.samplers {
+				s += fmt.Sprintf("  %s\n", sampler)
+			}
+			s += "\n"
+
+			err := l.write(c, s)
+			if err != nil {
+				break
+			}
+		}
+
+	case "start":
+		if len(r) < 4 || len(r) > 5 {
+			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			return
+		}
+
+		id := r[2]
+
+		filename := r[3]
+
+		regex := ""
+		if len(r) == 5 {
+			regex = r[4]
+		}
+
+		sampler, err := sampler.New(id, filename, regex)
+		if err != nil {
+			l.write(c, fmt.Sprintf("  Could not create sampler [%v].\n\n", err))
+			return
+		}
+
+		l.conf.mu.Lock()
+		l.conf.samplers = append(l.conf.samplers, sampler)
+		l.conf.mu.Unlock()
+
+		l.sendStatus(c)
+
+	case "stop":
+		if len(r) != 3 {
+			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			return
+		}
+
+		id := r[2]
+
+		l.conf.mu.Lock()
+		for i, sampler := range l.conf.samplers {
+			if sampler.ID == id {
+				sampler.Stop()
+				l.conf.samplers = append(l.conf.samplers[:i], l.conf.samplers[i+1:]...)
+				break // Only close the first sampler with this ID in case there are more than one with the same ID
+			}
+		}
+		l.conf.mu.Unlock()
+
+		l.sendStatus(c)
+	default:
+		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		return
+	}
+	return
+}
+
+func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
+	if len(r) <= 1 {
+		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		return
+	}
+
+	switch r[1] {
+	case "off":
+		if len(r) != 2 {
+			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			return
+		}
+		switch context {
+		case "DEBUG":
+			l.toggleDebug(false, "")
+			l.sendStatus(c)
+		case "TRACE":
+			delete(l.conf.trace.sockets, c)
+			l.sendStatus(c)
+		default:
+			l.write(c, "Invalid context'\n")
+		}
+
+	case "on":
+		if len(r) > 3 {
+			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			return
+		}
+
+		reg := ""
+		if len(r) == 3 {
+			reg = r[2]
+		}
+
+		switch context {
+		case "DEBUG":
+			l.toggleDebug(true, reg)
+			l.sendStatus(c)
+		case "TRACE":
+			l.conf.trace.sockets[c] = reg
+			l.sendStatus(c)
+		default:
+			l.write(c, "Invalid context'\n")
+		}
+
+	default:
+		l.write(c, "  Second parameter must be 'on' or 'off'\n\n")
+	}
+}
+
+func (l *Logger) toggleDebug(enabled bool, regex string) {
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
+
+	l.conf.debug.enabled = enabled
+	l.conf.debug.regex = regex
+
+	return
+}
+
+func (l *Logger) sendStatus(c net.Conn) {
+	l.conf.mu.RLock()
+	defer l.conf.mu.RUnlock()
+
+	res := ""
+	if l.conf.debug.enabled {
+		if l.conf.debug.regex != "" {
+			res += fmt.Sprintf("  DEBUG is ON filtered by a regex of %q\n", l.conf.debug.regex)
+		} else {
+			res += "  DEBUG is ON with no filter\n"
+		}
+	} else {
+		res += "  DEBUG is OFF\n"
+	}
+
+	if regex, ok := l.conf.trace.sockets[c]; ok {
+		if regex != "" {
+			res += fmt.Sprintf("  TRACE is ON filtered by a regex of %q\n", regex)
+		} else {
+			res += "  TRACE is ON with no filter\n"
+		}
+	} else {
+		res += "  TRACE is OFF\n"
+	}
+
+	res += fmt.Sprintf("  %d SAMPLES running\n", len(l.conf.samplers))
+
+	res += "\n"
+
+	l.write(c, res)
+}
+
+func (l *Logger) help(c net.Conn) {
+	type command struct {
+		cmd         string
+		description string
+	}
+
+	cmds := []command{
+		command{
+			cmd:         "debug [on {regex} | off] ",
+			description: "Turn on/off debug mode with an optional Regex pattern",
+		},
+		command{
+			cmd:         "trace [on {regex} | off] ",
+			description: "Turn on/off trace mode with an optional Regex pattern",
+		},
+		command{
+			cmd:         "sample [start <id> <filename> {regex} | stop <id> | list] ",
+			description: "Turn on/off samplers mode with an optional Regex pattern",
+		},
+		command{
+			cmd:         "status",
+			description: "Shows the status of debug",
+		},
+		command{
+			cmd:         "help",
+			description: "Shows the available commands",
+		},
+		command{
+			cmd:         "quit",
+			description: "Terminates this session",
+		},
+	}
+
+	res := ""
+	for _, c := range cmds {
+		res += fmt.Sprintf("  %s (%s)\n", c.cmd, c.description)
+	}
+	res += "\n"
+
+	l.write(c, res)
+}
+
+func (l *Logger) welcome(c net.Conn) {
+
+	res := "Runtime logger controller.\n-------------------------\nType help for a list of available commands.\n\n"
+	l.write(c, res)
 }

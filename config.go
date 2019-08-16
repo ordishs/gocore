@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,21 +27,6 @@ var (
 	c    *Configuration
 	once sync.Once
 )
-
-// GetOutboundIP comment
-func GetOutboundIP() (ip net.IP, err error) {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-
-	ip = localAddr.IP
-
-	return
-}
 
 // Config comment
 func Config() *Configuration {
