@@ -73,6 +73,26 @@ func Config() *Configuration {
 	return c
 }
 
+// Set an item in the config
+func (c *Configuration) Set(key string, value string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	oldValue := c.confs[key]
+	c.confs[key] = value
+	return oldValue
+}
+
+// Unset removes an item from the config
+func (c *Configuration) Unset(key string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	oldValue := c.confs[key]
+	delete(c.confs, key)
+	return oldValue
+}
+
 // Get (key, defaultValue)
 func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 	env := os.Getenv(key)

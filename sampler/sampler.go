@@ -2,6 +2,7 @@ package sampler
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -24,22 +25,27 @@ func New(id string, filename string, regex string) (*Sampler, error) {
 		return nil, err
 	}
 
-	go func() {
-		defer f.Close()
-
-		for msg := range ch {
-			f.Write([]byte(msg))
-		}
-	}()
-
-	return &Sampler{
+	sampler := &Sampler{
 		ID:       id,
 		Filename: filename,
 		Regex:    regex,
 		ch:       ch,
 		f:        f,
-	}, nil
+	}
 
+	go func() {
+		defer f.Close()
+
+		for msg := range ch {
+			_, err := f.Write([]byte(msg))
+			if err != nil {
+				log.Printf("Sampler %s failed to write to file [%v]", sampler, err)
+				sampler.Stop()
+			}
+		}
+	}()
+
+	return sampler, nil
 }
 
 func (s *Sampler) Write(str string) {

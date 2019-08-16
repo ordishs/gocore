@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"regexp"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -214,7 +213,7 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 	print := true
 
 	if level == "DEBUG" {
-		if !l.isDebugEnabled() || !l.isRegexMatch(l.conf.debug.regex, fmt.Sprintf(msg, args...)) {
+		if !l.isDebugEnabled() || !utils.IsRegexMatch(l.conf.debug.regex, fmt.Sprintf(msg, args...)) {
 			print = false
 		}
 	}
@@ -276,7 +275,7 @@ func (l *Logger) sendToTrace(s string, level string) {
 	defer l.conf.mu.Unlock()
 
 	for sock, r := range l.conf.trace.sockets {
-		if l.isRegexMatch(r, s) || l.isRegexMatch(strings.ToLower(r), strings.ToLower(level)) {
+		if utils.IsRegexMatch(r, s) || utils.IsRegexMatch(strings.ToLower(r), strings.ToLower(level)) {
 			_, e := sock.Write([]byte(s))
 			if e != nil {
 				log.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
@@ -291,15 +290,10 @@ func (l *Logger) sendToSample(s string, level string) {
 	defer l.conf.mu.Unlock()
 
 	for _, sampler := range l.conf.samplers {
-		if l.isRegexMatch(sampler.Regex, s) || l.isRegexMatch(strings.ToLower(sampler.Regex), strings.ToLower(level)) {
+		if utils.IsRegexMatch(sampler.Regex, s) || utils.IsRegexMatch(strings.ToLower(sampler.Regex), strings.ToLower(level)) {
 			sampler.Write(s)
 		}
 	}
-}
-
-func (l *Logger) isRegexMatch(r string, msg string) bool {
-	match, _ := regexp.MatchString(r, msg)
-	return match
 }
 
 func (l *Logger) handleIncomingMessage(c net.Conn) {
@@ -314,6 +308,8 @@ func (l *Logger) handleIncomingMessage(c net.Conn) {
 			}
 
 			switch s[0] {
+			case "config":
+				l.handleConfig(s, c)
 			case "debug":
 				l.handleDebugAndTrace("DEBUG", s, c)
 			case "trace":
@@ -442,6 +438,37 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 		return
 	}
 	return
+}
+
+func (l *Logger) handleConfig(r []string, c net.Conn) {
+	if len(r) <= 1 {
+		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		return
+	}
+
+	switch r[1] {
+	case "show":
+		stats := Config().Stats()
+		l.write(c, stats+"\n\n")
+
+	case "set":
+		oldValue := Config().Set(r[2], r[3])
+
+		if oldValue == r[3] {
+			l.write(c, "  No change\n\n")
+		} else if oldValue == "" {
+			l.write(c, fmt.Sprintf("  Created new setting: %s=%s\n\n", r[2], r[3]))
+		} else {
+			l.write(c, fmt.Sprintf("  Updated setting: %s %s -> %s\n\n", r[2], oldValue, r[3]))
+		}
+	case "unset":
+		oldValue := Config().Unset(r[2])
+		if oldValue == "" {
+			l.write(c, "  No change\n\n")
+		} else {
+			l.write(c, fmt.Sprintf("  Removed setting: %s=%s\n\n", r[2], oldValue))
+		}
+	}
 }
 
 func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
