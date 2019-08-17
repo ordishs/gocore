@@ -451,6 +451,14 @@ func (l *Logger) handleConfig(r []string, c net.Conn) {
 		stats := Config().Stats()
 		l.write(c, stats+"\n\n")
 
+	case "get":
+		value, ok := Config().Get(r[2])
+		if !ok {
+			l.write(c, "  Not set\n\n")
+		} else {
+			l.write(c, fmt.Sprintf("  %s=%s\n\n", r[2], value))
+		}
+
 	case "set":
 		oldValue := Config().Set(r[2], r[3])
 
@@ -581,6 +589,10 @@ func (l *Logger) help(c net.Conn) {
 		command{
 			cmd:         "sample [start <id> <filename> {regex} | stop <id> | list] ",
 			description: "Turn on/off samplers mode with an optional Regex pattern",
+		},
+		command{
+			cmd:         "config [get <key> | set <key> <value> | unset <key> | show ] ",
+			description: "Manage settings dynamically",
 		},
 		command{
 			cmd:         "status",
