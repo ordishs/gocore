@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -33,21 +32,22 @@ func main() {
 		i++
 	}
 
-	fmt.Println(args)
-
 	var addr string
 	if *packageName == "" {
 		files, err := filepath.Glob(filepath.Join(*socketDir, "*.sock"))
 		if err != nil {
-			log.Fatalln(err)
+			fmt.Println(err)
+			os.Exit(1)
 		}
 
 		if len(files) == 1 {
 			addr = files[0]
 		} else if len(files) == 0 {
-			log.Fatalln("No gocore processes are running.")
+			fmt.Println("No gocore processes are running.")
+			os.Exit(1)
 		} else {
-			log.Fatalf("There are %d sockets and no packageName specified.\n", len(files))
+			fmt.Printf("There are %d sockets and no packageName specified.\n", len(files))
+			os.Exit(1)
 		}
 	} else {
 
