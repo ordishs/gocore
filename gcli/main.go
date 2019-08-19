@@ -1,0 +1,87 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+func main() {
+	socketDir := flag.String("socketDir", "/tmp/gocore", "the folder where gcli will look for unix domain sockets")
+	packageName := flag.String("packageName", "", "the name of the unix domain socket.  This must be specified if there is more than 1 gocore process running")
+	flag.Parse()
+
+	// flag.Args() returns all non-flag arguments.  However, it doesn't understand multi-word quoted arguments
+	var args []string
+	i := 0
+	for {
+		arg := flag.Arg(i)
+		if arg == "" {
+			break
+		}
+
+		if strings.Contains(arg, " ") {
+			arg = fmt.Sprintf("%q", arg)
+		}
+		args = append(args, arg)
+		i++
+	}
+
+	fmt.Println(args)
+
+	var addr string
+	if *packageName == "" {
+		files, err := filepath.Glob(filepath.Join(*socketDir, "*.sock"))
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		if len(files) == 1 {
+			addr = files[0]
+		} else if len(files) == 0 {
+			log.Fatalln("No gocore processes are running.")
+		} else {
+			log.Fatalf("There are %d sockets and no packageName specified.\n", len(files))
+		}
+	} else {
+
+		addr = fmt.Sprintf("%s/%s.sock", *socketDir, *packageName)
+	}
+
+	conn, err := net.Dial("unix", addr)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	}
+
+	tcpconn, ok := conn.(*net.UnixConn)
+	if !ok {
+		fmt.Printf("Failed to cast %v to net.UnixConn\n", conn)
+		os.Exit(1)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func(command string) {
+		tcpconn.Write([]byte(command + "\n"))
+		tcpconn.Write([]byte("quit\n"))
+		tcpconn.CloseWrite()
+		wg.Done()
+	}(strings.Join(args, " "))
+
+	go func() {
+		io.Copy(os.Stdout, tcpconn)
+		tcpconn.CloseRead()
+		wg.Done()
+	}()
+
+	wg.Wait()
+	return
+}
