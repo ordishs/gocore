@@ -14,6 +14,7 @@ import (
 func main() {
 	socketDir := flag.String("socketDir", "/tmp/gocore", "the folder where gcli will look for unix domain sockets")
 	packageName := flag.String("packageName", "", "the name of the unix domain socket.  This must be specified if there is more than 1 gocore process running")
+	keepAlive := flag.Bool("keepAlive", false, "keep the socket open (useful for trace)")
 	flag.Parse()
 
 	// flag.Args() returns all non-flag arguments.  However, it doesn't understand multi-word quoted arguments
@@ -71,8 +72,13 @@ func main() {
 
 	go func(command string) {
 		tcpconn.Write([]byte(command + "\n"))
-		tcpconn.Write([]byte("quit\n"))
-		tcpconn.CloseWrite()
+		if *keepAlive {
+			io.Copy(tcpconn, os.Stdin)
+			tcpconn.CloseWrite()
+		} else {
+			tcpconn.Write([]byte("quit\n"))
+			tcpconn.CloseWrite()
+		}
 		wg.Done()
 	}(strings.Join(args, " "))
 
