@@ -496,7 +496,9 @@ func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 			l.toggleDebug(false, "")
 			l.sendStatus(c)
 		case "TRACE":
+			l.conf.mu.Lock()
 			delete(l.conf.trace.sockets, c)
+			l.conf.mu.Unlock()
 			l.sendStatus(c)
 		default:
 			l.write(c, "Invalid context'\n")
@@ -518,7 +520,9 @@ func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 			l.toggleDebug(true, reg)
 			l.sendStatus(c)
 		case "TRACE":
+			l.conf.mu.Lock()
 			l.conf.trace.sockets[c] = reg
+			l.conf.mu.Unlock()
 			l.sendStatus(c)
 		default:
 			l.write(c, "Invalid context'\n")
