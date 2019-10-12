@@ -127,8 +127,9 @@ func (l *Logger) write(c io.Writer, s string) error {
 }
 
 // Debug Comment
-func (l *Logger) Debug(msg string, args ...interface{}) {
-	l.output("DEBUG", "blue", "", args...)
+func (l *Logger) Debug(args ...interface{}) {
+	msg := ""
+	l.output("DEBUG", "blue", msg, args...)
 }
 
 // Debugf Comment
@@ -138,7 +139,8 @@ func (l *Logger) Debugf(msg string, args ...interface{}) {
 
 // Info comment
 func (l *Logger) Info(args ...interface{}) {
-	l.output("INFO", "green", "", args...)
+	msg := ""
+	l.output("INFO", "green", msg, args...)
 }
 
 // Infof comment
@@ -148,7 +150,8 @@ func (l *Logger) Infof(msg string, args ...interface{}) {
 
 // Warn comment
 func (l *Logger) Warn(args ...interface{}) {
-	l.output("WARN", "yellow", "", args...)
+	msg := ""
+	l.output("WARN", "yellow", msg, args...)
 }
 
 // Warnf comment
@@ -158,7 +161,8 @@ func (l *Logger) Warnf(msg string, args ...interface{}) {
 
 // Error comment
 func (l *Logger) Error(args ...interface{}) {
-	l.output("ERROR", "red", "", args...)
+	msg := ""
+	l.output("ERROR", "red", msg, args...)
 }
 
 // Errorf comment
@@ -175,7 +179,8 @@ func (l *Logger) ErrorWithStack(msg string, args ...interface{}) {
 
 // Fatal Comment
 func (l *Logger) Fatal(args ...interface{}) {
-	l.output("FATAL", "cyan", "", args...)
+	msg := ""
+	l.output("FATAL", "cyan", msg, args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
@@ -193,7 +198,8 @@ func (l *Logger) Fatalf(msg string, args ...interface{}) {
 
 // Panic Comment
 func (l *Logger) Panic(args ...interface{}) {
-	l.output("PANIC", "magenta", "", args...)
+	msg := ""
+	l.output("PANIC", "magenta", msg, args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
