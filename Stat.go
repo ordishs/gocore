@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,13 +37,23 @@ var (
 )
 
 func handleStats(w http.ResponseWriter, r *http.Request) {
+	keysParam := r.URL.Query().Get("key")
 	rootItem.mu.RLock()
 	defer rootItem.mu.RUnlock()
-	rootItem.printStatisticsHTML(w, rootItem, "")
+	rootItem.printStatisticsHTML(w, rootItem, keysParam)
 }
 
 func resetStats(w http.ResponseWriter, r *http.Request) {
-	rootItem.reset()
+	keysParam := r.URL.Query().Get("key")
+	item := rootItem
+
+	if keysParam != "" {
+		for _, key := range strings.Split(keysParam, ",") {
+			item = item.getChild(key)
+		}
+	}
+
+	item.reset()
 	http.Redirect(w, r, "/stats", http.StatusSeeOther)
 }
 
@@ -102,6 +113,13 @@ func (s *Stat) NewStat(key string) *Stat {
 	}
 
 	return s
+}
+
+func (s *Stat) getChild(name string) *Stat {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.children[name]
 }
 
 func (s *Stat) processTime(now time.Time, diff int64) {
@@ -238,7 +256,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprint(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")
 	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='reset' method='get'>\r\n")
 	// 		// Using location.replace here so that the history buffer is not messed up for going back a page.
-	fmt.Fprintf(p, "<input type='submit' value='Reset Statistics'>\r\n")
+	fmt.Fprintf(p, "<input type='button' value='Reset Statistics' onClick='window.location.replace(\"reset?key=%s\");'>\r\n", keysParam)
 	fmt.Fprintf(p, "</form>\r\n")
 	fmt.Fprintf(p, "</td>\r\n")
 	fmt.Fprintf(p, "</tr>\r\n")
@@ -263,18 +281,31 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 
 	fmt.Fprintf(p, "<tbody>\r\n")
 
+	item := root
+
+	var keys []string
+	if keysParam != "" {
+		keys = strings.Split(keysParam, ",")
+		keysParam += ","
+	} else {
+		keysParam = ""
+	}
+
+	for _, key := range keys {
+		item = item.getChild(key)
+	}
+
 	now := time.Now().UTC()
 
 	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), utils.HumanTime(time.Since(initTime)))
 
-	for key, item := range root.children {
+	for key, item := range item.children {
 		item.mu.RLock()
 
 		fmt.Fprintf(p, "<tr>\r\n")
 		if len(item.children) > 0 {
-			context := ""
-			keysParam := ""
-			fmt.Fprintf(p, "<td><a href='%s?%s' /></td>\r\n", context, keysParam)
+			keysParam += key
+			fmt.Fprintf(p, "<td><a href='/stats?key=%s'>%s</a></td>\r\n", keysParam, key)
 		} else {
 			fmt.Fprintf(p, "<td>%s</td>\r\n", key)
 		}
@@ -293,20 +324,14 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 		item.mu.RUnlock()
 	}
 
-	// 		for (StatisticalItem item : statisticalItem.getChildren()) {
-	// 				if (item != statisticalItem) {
-
-	//
-	// 		}
-
 	fmt.Fprintf(p, "</tbody>\r\n")
 
 	fmt.Fprintf(p, "</table>\r\n")
 	fmt.Fprintf(p, "<p>Report time: %s</p>\r\n", now.Format("2006-01-02 15:04:05.000"))
 	fmt.Fprintf(p, "<div align='right'>")
-	// fmt.Fprintf(p, "<form>\r\n\r\n")
-	// fmt.Fprintf(p, "<input type='button' value='  Back  ' onClick='history.go(-1)'>\r\n")
-	// fmt.Fprintf(p, "</form>\r\n")
+	fmt.Fprintf(p, "<form>\r\n\r\n")
+	fmt.Fprintf(p, "<input type='button' value='  Back  ' onClick='history.go(-1)'>\r\n")
+	fmt.Fprintf(p, "</form>\r\n")
 	fmt.Fprintf(p, "</div>\r\n")
 	fmt.Fprintf(p, "</body></html>\r\n")
 

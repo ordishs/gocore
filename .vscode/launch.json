@@ -5,14 +5,14 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Stats",
+      "name": "Server Example",
       "type": "go",
       "request": "launch",
       "mode": "debug",
       "remotePath": "",
       "port": 9981,
       "host": "127.0.0.1",
-      "program": "${workspaceFolder}/serverExample/main.go",
+      "program": "${workspaceFolder}/examples/server/main.go",
       "env": {},
       
       "args": [],
