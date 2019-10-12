@@ -8,6 +8,8 @@ import (
 	"github.com/ordishs/gocore"
 )
 
+var logger = gocore.Log("Example server")
+
 func main() {
 
 	s := gocore.NewStat("something")
@@ -21,6 +23,12 @@ func main() {
 	g := gocore.NewStat("else")
 	g.AddTime(time.Now().UTC().UnixNano())
 	g.AddTime(time.Now().UTC().UnixNano())
+
+	h := g.NewStat("hello")
+	h.AddTime(time.Now().UTC().UnixNano())
+
+	j := h.NewStat("Another")
+	j.AddTime(time.Now().UTC().UnixNano())
 
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 100)
