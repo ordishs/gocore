@@ -104,19 +104,7 @@ func (s *Stat) NewStat(key string) *Stat {
 	return s
 }
 
-// AddTime comment
-func (s *Stat) AddTime(startNanos int64) int64 {
-	now := time.Now().UTC()
-
-	endNanos := now.UnixNano()
-
-	if endNanos < startNanos {
-		log.Printf("%s: EndNanos is less than StartNanos", s.key)
-		return 0
-	}
-
-	diff := endNanos - startNanos
-
+func (s *Stat) processTime(now time.Time, diff int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -138,6 +126,26 @@ func (s *Stat) AddTime(startNanos int64) int64 {
 	}
 	s.total += diff
 	s.count++
+}
+
+// AddTime comment
+func (s *Stat) AddTime(startNanos int64) int64 {
+	now := time.Now().UTC()
+
+	endNanos := now.UnixNano()
+
+	if endNanos < startNanos {
+		log.Printf("%s: EndNanos is less than StartNanos", s.key)
+		return 0
+	}
+
+	diff := endNanos - startNanos
+
+	s.processTime(now, diff)
+
+	if s.parent != nil {
+		s.parent.processTime(now, diff)
+	}
 
 	return endNanos
 }
