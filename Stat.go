@@ -83,6 +83,27 @@ func NewStat(key string) *Stat {
 	return s
 }
 
+// NewStat comment
+func (s *Stat) NewStat(key string) *Stat {
+
+	parent := s
+
+	parent.mu.Lock()
+	defer parent.mu.Unlock()
+
+	s, ok := parent.children[key]
+	if !ok {
+		s = &Stat{
+			key:      key,
+			parent:   parent,
+			children: make(map[string]*Stat),
+		}
+		parent.children[key] = s
+	}
+
+	return s
+}
+
 // AddTime comment
 func (s *Stat) AddTime(startNanos int64) int64 {
 	now := time.Now().UTC()
