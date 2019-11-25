@@ -41,13 +41,19 @@ func Config() *Configuration {
 
 		f, _ := filepath.Abs(filename)
 		bytes, err := ioutil.ReadFile(f)
-		if err != nil {
-			f, _ := filepath.Abs(filepath.Join("..", filename))
+
+		for err != nil && f != "/"+filename {
+
+			dir := filepath.Dir(f)
+			dir = filepath.Join(dir, "..")
+
+			f, _ = filepath.Abs(filepath.Join(dir, filename))
 			bytes, err = ioutil.ReadFile(f)
-			if err != nil {
-				log.Printf("Failed to read config ['%s'] - %s\n", f, err)
-				os.Exit(1)
-			}
+		}
+
+		if err != nil {
+			log.Printf("Failed to read config ['%s'] - %s\n", f, err)
+			os.Exit(1)
 		}
 
 		str := string(bytes)

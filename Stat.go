@@ -26,6 +26,8 @@ type Stat struct {
 	count      int64
 	firstTime  time.Time
 	lastTime   time.Time
+	addChildTime bool
+	addChildCount bool
 }
 
 var (
@@ -73,8 +75,9 @@ func StartStatsServer(addr string) {
 	}
 }
 
-// NewStat comment
-func NewStat(key string) *Stat {
+// NewStat comment.  The optional boolean args are for specifying
+// if the childTime or childCount should be aggregated.
+func NewStat(key string, options ...bool) *Stat {
 
 	parent := rootItem
 
@@ -88,6 +91,14 @@ func NewStat(key string) *Stat {
 			parent:   parent,
 			children: make(map[string]*Stat),
 		}
+
+		if len(options) == 2 {
+			s.addChildTime = options[0]		
+			s.addChildCount = options[1]
+		} else if len(options) == 1 {
+			s.addChildTime = options[0]
+		}
+
 		parent.children[key] = s
 	}
 

@@ -1,6 +1,7 @@
 package gocore
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/ordishs/gocore/utils"
@@ -74,4 +75,17 @@ func TestGetOutboundIP(t *testing.T) {
 		t.Errorf("Expected IP, got %+v", err)
 	}
 	t.Logf("IP: %s", ip)
+}
+
+func TestFilePath(t *testing.T) {
+	file := "/Users/ordishs/dev/go/gocore/settings.conf"
+	dir := filepath.Dir(file)
+	if dir != "/Users/ordishs/dev/go/gocore" {
+		t.Errorf("dir is wrong")
+	}
+
+	abs, _ := filepath.Abs(dir)
+	if abs != "/Users/ordishs/dev/go/gocore" {
+		t.Errorf("abs is wrong")
+	}
 }
