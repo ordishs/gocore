@@ -70,6 +70,12 @@ func Config() *Configuration {
 					value := line[pos+1:]
 					value = strings.TrimSpace(value)
 
+					// As an edge case, remove the first and last characters
+					// if they are both double quotes
+					if len(value) > 2 && value[0] == '"' && value[len(value)-1] == '"' {
+						value = value[1 : len(value)-1]
+					}
+
 					c.confs[key] = value
 				}
 			}
