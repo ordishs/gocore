@@ -1,15 +1,20 @@
 package gocore
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 const (
@@ -24,8 +29,9 @@ type Configuration struct {
 }
 
 var (
-	c    *Configuration
-	once sync.Once
+	c           *Configuration
+	once        sync.Once
+	packageName atomic.Value
 )
 
 // Config comment
@@ -80,9 +86,118 @@ func Config() *Configuration {
 				}
 			}
 		}
+
+		advertisingURL, _ := c.Get("advertisingURL")
+
+		if advertisingURL != "" {
+			advertisingInterval, _ := c.Get("advertisingInterval", "1m")
+			logInfof("Advertising service every %s to %q\n", advertisingInterval, advertisingURL)
+
+			interval, err := time.ParseDuration(advertisingInterval)
+			if err != nil {
+				interval = time.Duration(1 * time.Minute)
+			}
+
+			startTime := time.Now().UTC().Format(time.RFC3339)
+
+			host, err := os.Hostname()
+			if err != nil {
+				host = "UNKNOWN"
+			}
+
+			executable := os.Args[0]
+
+			go func() {
+				time.Sleep(1 * time.Second) // Sleep for 1 second to let packageName to be set
+
+				ticker := time.NewTicker(interval)
+
+				type payload struct {
+					Executable   string `json:"executable"`
+					ServiceName  string `json:"serviceName"`
+					Context      string `json:"context"`
+					SettingsFile string `json:"settingsFile"`
+					Host         string `json:"host"`
+					StartTime    string `json:"startTime"`
+				}
+
+				for ; true; <-ticker.C {
+					p, ok := packageName.Load().(string)
+					if !ok {
+						p = "Unknown"
+					}
+
+					j, err := json.Marshal(&payload{
+						Executable:   executable,
+						ServiceName:  p,
+						Context:      env,
+						SettingsFile: f,
+						Host:         host,
+						StartTime:    startTime,
+					})
+
+					if err != nil {
+						logWarnf("Advertising ERROR: %v\n", err)
+						continue
+					}
+
+					// log.Printf("%s\n", string(j))
+
+					_, err = postJSON(advertisingURL, j)
+					if err != nil {
+						logWarnf("Advertising ERROR %v\n", err)
+						continue
+					}
+				}
+			}()
+		}
 	})
 
 	return c
+}
+
+func logInfof(msg string, args ...interface{}) {
+	if logger != nil {
+		logger.Infof(msg, args...)
+	} else {
+		log.Printf(msg, args...)
+	}
+}
+
+func logWarnf(msg string, args ...interface{}) {
+	if logger != nil {
+		logger.Warnf(msg, args...)
+	} else {
+		log.Printf(msg, args...)
+	}
+}
+
+func postJSON(url string, j []byte) (string, error) {
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(j))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := http.Client{Timeout: 500 * time.Millisecond}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// fmt.Println("response Status:", resp.Status)
+	// fmt.Println("response Headers:", resp.Header)
+	body, err := ioutil.ReadAll(resp.Body)
+	// fmt.Println("response Body:", string(body))
+	if err != nil {
+		return "", err
+	}
+
+	return string(body), err
+}
+
+// SetPackageName function
+func SetPackageName(name string) {
+	packageName.Store(name)
 }
 
 // Set an item in the config
