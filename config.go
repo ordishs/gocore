@@ -32,7 +32,22 @@ var (
 	c           *Configuration
 	once        sync.Once
 	packageName atomic.Value
+	address     atomic.Value
+	version     atomic.Value
+	commit      atomic.Value
 )
+
+// SetInfo comment
+func SetInfo(name string, ver string, com string) {
+	packageName.Store(name)
+	version.Store(ver)
+	commit.Store(com)
+}
+
+// SetAddress comment
+func SetAddress(addr string) {
+	address.Store(addr)
+}
 
 // Config comment
 func Config() *Configuration {
@@ -115,9 +130,12 @@ func Config() *Configuration {
 				type payload struct {
 					Executable   string `json:"executable"`
 					ServiceName  string `json:"serviceName"`
+					Version      string `json:"version"`
+					Commit       string `json:"commit"`
 					Context      string `json:"context"`
 					SettingsFile string `json:"settingsFile"`
 					Host         string `json:"host"`
+					Address      string `json:"address"`
 					StartTime    string `json:"startTime"`
 				}
 
@@ -127,12 +145,30 @@ func Config() *Configuration {
 						p = "Unknown"
 					}
 
+					address, ok := address.Load().(string)
+					if !ok {
+						address = "Unknown"
+					}
+
+					ver, ok := version.Load().(string)
+					if !ok {
+						ver = "..."
+					}
+
+					c, ok := commit.Load().(string)
+					if !ok {
+						c = "..."
+					}
+
 					j, err := json.Marshal(&payload{
 						Executable:   executable,
 						ServiceName:  p,
+						Version:      ver,
+						Commit:       c,
 						Context:      env,
 						SettingsFile: f,
 						Host:         host,
+						Address:      address,
 						StartTime:    startTime,
 					})
 
