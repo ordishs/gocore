@@ -215,6 +215,9 @@ func postJSON(url string, j []byte) (string, error) {
 	}
 	jsonBuf := bytes.NewBuffer(j)
 	req, err := http.NewRequest("POST", url, jsonBuf)
+	if err != nil {
+		return "", err
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := http.Client{Timeout: 500 * time.Millisecond}
