@@ -209,8 +209,12 @@ func logWarnf(msg string, args ...interface{}) {
 }
 
 func postJSON(url string, j []byte) (string, error) {
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(j))
+	if j == nil || len(j) == 0 || url == "" {
+		logWarnf("Advertising post ERROR empty advertise URL |%v| or JSON\n", url)
+		return "", fmt.Errorf("Error posting JSON")
+	}
+	jsonBuf := bytes.NewBuffer(j)
+	req, err := http.NewRequest("POST", url, jsonBuf)
 	req.Header.Set("Content-Type", "application/json")
 
 	client := http.Client{Timeout: 500 * time.Millisecond}
