@@ -190,7 +190,9 @@ func (l *Logger) Fatal(args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	l.errorLog.Fatal(args...)
+	trace := fmt.Sprintf("%s\n%s", args, debug.Stack())
+	l.errorLog.Output(3, trace)
+	// l.errorLog.Fatal(args...)
 }
 
 // Fatalf Comment
