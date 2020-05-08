@@ -44,6 +44,8 @@ type Logger struct {
 	packageName string
 	colour      bool
 	conf        loggerConfig
+	infoLog     *log.Logger
+	errorLog    *log.Logger
 }
 
 var (
@@ -75,6 +77,8 @@ func Log(packageName string) *Logger {
 					sockets: make(map[net.Conn]string),
 				},
 			},
+			infoLog:  log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime|log.LUTC),
+			errorLog: log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.LUTC|log.Llongfile),
 		}
 
 		SetPackageName(packageName)
@@ -186,7 +190,7 @@ func (l *Logger) Fatal(args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	log.Fatal(args...)
+	l.errorLog.Fatal(args...)
 }
 
 // Fatalf Comment
@@ -195,7 +199,7 @@ func (l *Logger) Fatalf(msg string, args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	log.Fatal(fmt.Sprintf(msg, args...))
+	l.errorLog.Fatal(fmt.Sprintf(msg, args...))
 }
 
 // Panic Comment
@@ -205,7 +209,7 @@ func (l *Logger) Panic(args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	log.Panic(args...)
+	l.errorLog.Panic(args...)
 }
 
 // Panicf Comment
@@ -214,16 +218,23 @@ func (l *Logger) Panicf(msg string, args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	log.Panic(fmt.Sprintf(msg, args...))
+	l.errorLog.Panic(fmt.Sprintf(msg, args...))
 }
 
 func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 	print := true
 
-	if level == "DEBUG" {
+	var logger *log.Logger
+	switch level {
+	case "DEBUG":
 		if !l.isDebugEnabled() || !utils.IsRegexMatch(l.conf.debug.regex, fmt.Sprintf(msg, args...)) {
 			print = false
 		}
+		logger = l.errorLog
+	case "ERROR":
+		logger = l.errorLog
+	default:
+		logger = l.infoLog
 	}
 
 	if l.colour && colour != "" {
@@ -237,11 +248,11 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 
 	if print {
 		if msg != "" {
-			log.Printf(format, args...)
+			logger.Printf(format, args...)
 		} else {
 			m := []interface{}{format}
 			m = append(m, args...)
-			log.Println(m...)
+			logger.Println(m...)
 		}
 	}
 
@@ -286,7 +297,7 @@ func (l *Logger) sendToTrace(s string, level string) {
 		if utils.IsRegexMatch(r, s) || utils.IsRegexMatch(strings.ToLower(r), strings.ToLower(level)) {
 			_, e := sock.Write([]byte(s))
 			if e != nil {
-				log.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
+				l.errorLog.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
 				delete(l.conf.trace.sockets, sock)
 			}
 		}

@@ -38,6 +38,13 @@ func main() {
 		}
 	}()
 
+	go func() {
+		ticker3 := time.NewTicker(3 * time.Second)
+		for range ticker3.C {
+			logger.Errorf("This is an error log with %s", "Args")
+		}
+	}()
+
 	waitCh := make(chan bool)
 	<-waitCh
 }
