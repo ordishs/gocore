@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -44,8 +45,6 @@ type Logger struct {
 	packageName string
 	colour      bool
 	conf        loggerConfig
-	infoLog     *log.Logger
-	errorLog    *log.Logger
 }
 
 var (
@@ -77,8 +76,6 @@ func Log(packageName string) *Logger {
 					sockets: make(map[net.Conn]string),
 				},
 			},
-			infoLog:  log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC),
-			errorLog: log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC|log.Llongfile),
 		}
 
 		SetPackageName(packageName)
@@ -190,18 +187,16 @@ func (l *Logger) Fatal(args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	trace := fmt.Sprintf("%s\n%s", args, debug.Stack())
-	l.errorLog.Output(3, trace)
-	// l.errorLog.Fatal(args...)
+	os.Exit(1)
 }
 
 // Fatalf Comment
 func (l *Logger) Fatalf(msg string, args ...interface{}) {
-	l.output("FATAL", "cyan", msg, args...)
+	l.output("FATAL", "cyan", fmt.Sprintf(msg, args...))
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	l.errorLog.Fatal(fmt.Sprintf(msg, args...))
+	os.Exit(1)
 }
 
 // Panic Comment
@@ -211,7 +206,7 @@ func (l *Logger) Panic(args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	l.errorLog.Panic(args...)
+	log.Panic(args...)
 }
 
 // Panicf Comment
@@ -220,41 +215,40 @@ func (l *Logger) Panicf(msg string, args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	l.errorLog.Panic(fmt.Sprintf(msg, args...))
+	log.Panic(fmt.Sprintf(msg, args...))
 }
 
 func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 	print := true
 
-	var logger *log.Logger
-	switch level {
-	case "DEBUG":
+	if level == "DEBUG" {
 		if !l.isDebugEnabled() || !utils.IsRegexMatch(l.conf.debug.regex, fmt.Sprintf(msg, args...)) {
 			print = false
 		}
-		logger = l.errorLog
-	case "ERROR":
-		logger = l.errorLog
-	default:
-		logger = l.infoLog
 	}
 
 	if l.colour && colour != "" {
 		level = ansi.Color(level, colour)
 	}
 
-	format := fmt.Sprintf("%s - %s:", l.packageName, level)
+	_, file, line, ok := runtime.Caller(2)
+	if !ok {
+		file = "???"
+		line = 0
+	}
+
+	format := fmt.Sprintf("%s:%d: %s - %s:", file, line, l.packageName, level)
 	if msg != "" {
-		format = fmt.Sprintf("%s - %s: %s", l.packageName, level, msg)
+		format = fmt.Sprintf("%s: %d: %s - %s: %s", file, line, l.packageName, level, msg)
 	}
 
 	if print {
 		if msg != "" {
-			logger.Printf(format, args...)
+			log.Printf(format, args...)
 		} else {
 			m := []interface{}{format}
 			m = append(m, args...)
-			logger.Println(m...)
+			log.Println(m...)
 		}
 	}
 
@@ -299,7 +293,7 @@ func (l *Logger) sendToTrace(s string, level string) {
 		if utils.IsRegexMatch(r, s) || utils.IsRegexMatch(strings.ToLower(r), strings.ToLower(level)) {
 			_, e := sock.Write([]byte(s))
 			if e != nil {
-				l.errorLog.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
+				log.Println(ansi.Color(fmt.Sprintf("Writing client error: '%s'", e), "red"))
 				delete(l.conf.trace.sockets, sock)
 			}
 		}
@@ -603,31 +597,31 @@ func (l *Logger) help(c net.Conn) {
 	}
 
 	cmds := []command{
-		command{
+		{
 			cmd:         "debug [on {regex} | off] ",
 			description: "Turn on/off debug mode with an optional Regex pattern",
 		},
-		command{
+		{
 			cmd:         "trace [on {regex} | off] ",
 			description: "Turn on/off trace mode with an optional Regex pattern",
 		},
-		command{
+		{
 			cmd:         "sample [start <id> <filename> {regex} | stop <id> | list] ",
 			description: "Turn on/off samplers mode with an optional Regex pattern",
 		},
-		command{
+		{
 			cmd:         "config [get <key> | set <key> <value> | unset <key> | show ] ",
 			description: "Manage settings dynamically",
 		},
-		command{
+		{
 			cmd:         "status",
 			description: "Shows the status of debug",
 		},
-		command{
+		{
 			cmd:         "help",
 			description: "Shows the available commands",
 		},
-		command{
+		{
 			cmd:         "quit",
 			description: "Terminates this session",
 		},
