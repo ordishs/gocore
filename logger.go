@@ -77,8 +77,8 @@ func Log(packageName string) *Logger {
 					sockets: make(map[net.Conn]string),
 				},
 			},
-			infoLog:  log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime|log.LUTC),
-			errorLog: log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.LUTC|log.Llongfile),
+			infoLog:  log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC),
+			errorLog: log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC|log.Llongfile),
 		}
 
 		SetPackageName(packageName)
