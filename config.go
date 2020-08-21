@@ -17,10 +17,6 @@ import (
 	"time"
 )
 
-const (
-	filename = "settings.conf"
-)
-
 // Configuration comment
 type Configuration struct {
 	confs   map[string]string
@@ -49,6 +45,59 @@ func SetAddress(addr string) {
 	address.Store(addr)
 }
 
+func processFile(m map[string]string, filename string) (string, error) {
+	f, err := filepath.Abs(filename)
+	if err != nil {
+		return filename, err
+	}
+	bytes, err := ioutil.ReadFile(f)
+
+	for err != nil && f != "/"+filename {
+
+		dir := filepath.Dir(f)
+		dir = filepath.Join(dir, "..")
+
+		f, err = filepath.Abs(filepath.Join(dir, filename))
+		if err != nil {
+			return "", err
+		}
+		bytes, err = ioutil.ReadFile(f)
+	}
+
+	if err != nil {
+		return f, err
+	}
+
+	str := string(bytes)
+	lines := strings.Split(str, "\n")
+
+	for lineNum, line := range lines {
+		if len(line) > 0 {
+			line = strings.Split(line, "#")[0]
+			pos := strings.Index(line, "=")
+			if pos != -1 {
+				key := strings.TrimSpace(line[:pos])
+				value := line[pos+1:]
+				value = strings.TrimSpace(value)
+
+				// As an edge case, remove the first and last characters
+				// if they are both double quotes
+				if len(value) > 2 && value[0] == '"' && value[len(value)-1] == '"' {
+					value = value[1 : len(value)-1]
+				}
+
+				oldVal, found := m[key]
+				if found {
+					log.Printf("INFO: %s:%d is replacing %q: %q -> %q", f, lineNum+1, key, oldVal, value)
+				}
+				m[key] = value
+			}
+		}
+	}
+
+	return f, nil
+}
+
 // Config comment
 func Config() *Configuration {
 	once.Do(func() {
@@ -60,45 +109,22 @@ func Config() *Configuration {
 			c.context = env
 		}
 
-		f, _ := filepath.Abs(filename)
-		bytes, err := ioutil.ReadFile(f)
+		c.confs = make(map[string]string, 0)
 
-		for err != nil && f != "/"+filename {
-
-			dir := filepath.Dir(f)
-			dir = filepath.Join(dir, "..")
-
-			f, _ = filepath.Abs(filepath.Join(dir, filename))
-			bytes, err = ioutil.ReadFile(f)
-		}
-
+		filename, err := processFile(c.confs, "settings.conf")
 		if err != nil {
-			log.Printf("Failed to read config ['%s'] - %s\n", f, err)
+			log.Printf("FATAL: Failed to read config ['%s'] - %s\n", filename, err)
 			os.Exit(1)
 		}
 
-		str := string(bytes)
-		lines := strings.Split(str, "\n")
-
-		c.confs = make(map[string]string, 0)
-
-		for _, line := range lines {
-			if len(line) > 0 {
-				line = strings.Split(line, "#")[0]
-				pos := strings.Index(line, "=")
-				if pos != -1 {
-					key := strings.TrimSpace(line[:pos])
-					value := line[pos+1:]
-					value = strings.TrimSpace(value)
-
-					// As an edge case, remove the first and last characters
-					// if they are both double quotes
-					if len(value) > 2 && value[0] == '"' && value[len(value)-1] == '"' {
-						value = value[1 : len(value)-1]
-					}
-
-					c.confs[key] = value
-				}
+		localFilename, err := processFile(c.confs, "settings_local.conf")
+		if err != nil {
+			if os.IsNotExist(err) {
+				localFilename = "NOT FOUND"
+				log.Printf("WARN: No local config file ['%s'] - %s\n", "settings_local.conf", err)
+			} else {
+				log.Printf("FATAL: Failed to read config ['%s'] - %s\n", localFilename, err)
+				os.Exit(1)
 			}
 		}
 
@@ -128,15 +154,16 @@ func Config() *Configuration {
 				ticker := time.NewTicker(interval)
 
 				type payload struct {
-					Executable   string `json:"executable"`
-					ServiceName  string `json:"serviceName"`
-					Version      string `json:"version"`
-					Commit       string `json:"commit"`
-					Context      string `json:"context"`
-					SettingsFile string `json:"settingsFile"`
-					Host         string `json:"host"`
-					Address      string `json:"address"`
-					StartTime    string `json:"startTime"`
+					Executable        string `json:"executable"`
+					ServiceName       string `json:"serviceName"`
+					Version           string `json:"version"`
+					Commit            string `json:"commit"`
+					Context           string `json:"context"`
+					SettingsFile      string `json:"settingsFile"`
+					LocalSettingsFile string `json:"localSettingsFile"`
+					Host              string `json:"host"`
+					Address           string `json:"address"`
+					StartTime         string `json:"startTime"`
 				}
 
 				for ; true; <-ticker.C {
@@ -161,15 +188,16 @@ func Config() *Configuration {
 					}
 
 					j, err := json.Marshal(&payload{
-						Executable:   executable,
-						ServiceName:  p,
-						Version:      ver,
-						Commit:       c,
-						Context:      env,
-						SettingsFile: f,
-						Host:         host,
-						Address:      address,
-						StartTime:    startTime,
+						Executable:        executable,
+						ServiceName:       p,
+						Version:           ver,
+						Commit:            c,
+						Context:           env,
+						SettingsFile:      filename,
+						LocalSettingsFile: localFilename,
+						Host:              host,
+						Address:           address,
+						StartTime:         startTime,
 					})
 
 					if err != nil {
