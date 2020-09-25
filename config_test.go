@@ -89,3 +89,25 @@ func TestFilePath(t *testing.T) {
 		t.Errorf("abs is wrong")
 	}
 }
+
+func TestGetSecretKey(t *testing.T) {
+	secret, ok := Config().Get("secret")
+	if secret != "secret" {
+		t.Errorf("Expected 'secret' and got '%s'", secret)
+	}
+
+	if !ok {
+		t.Errorf("Expected ok=true and got ok=%+v", ok)
+	}
+}
+
+func TestGetMagicNumber(t *testing.T) {
+	secret, ok := Config().GetInt("magicNumber")
+	if secret != 42 {
+		t.Errorf("Expected 42 and got %d", secret)
+	}
+
+	if !ok {
+		t.Errorf("Expected ok=true and got ok=%+v", ok)
+	}
+}

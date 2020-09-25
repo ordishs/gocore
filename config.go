@@ -15,6 +15,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ordishs/gocore/utils"
 )
 
 // Configuration comment
@@ -291,11 +293,20 @@ func (c *Configuration) Unset(key string) string {
 	return oldValue
 }
 
+func (c *Configuration) decrypt(val string) string {
+	s, err := utils.DecryptSetting(val)
+	if err != nil {
+		return val
+	}
+
+	return s
+}
+
 // Get (key, defaultValue)
 func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 	env := os.Getenv(key)
 	if env != "" {
-		return env, true
+		return c.decrypt(env), true
 	}
 
 	c.mu.RLock()
@@ -325,14 +336,14 @@ func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 	}
 
 	if ok {
-		return ret, ok
+		return c.decrypt(ret), ok
 	}
 
 	if len(defaultValue) > 0 {
 		ret = defaultValue[0]
 	}
 
-	return ret, false
+	return c.decrypt(ret), false
 }
 
 // GetInt comment
