@@ -115,17 +115,22 @@ func Config() *Configuration {
 
 		filename, err := processFile(c.confs, "settings.conf")
 		if err != nil {
-			log.Printf("FATAL: Failed to read config ['%s'] - %s\n", filename, err)
-			os.Exit(1)
+			if os.IsNotExist(err) {
+				filename = "NOT FOUND"
+				log.Println("WARN: No config file 'settings.conf'")
+			} else {
+				log.Printf("FATAL: Failed to read config  file '%s' - [%v]", filename, err)
+				os.Exit(1)
+			}
 		}
 
 		localFilename, err := processFile(c.confs, "settings_local.conf")
 		if err != nil {
 			if os.IsNotExist(err) {
 				localFilename = "NOT FOUND"
-				log.Printf("WARN: No local config file ['%s'] - %s\n", "settings_local.conf", err)
+				log.Println("WARN: No local config file 'settings_local.conf'")
 			} else {
-				log.Printf("FATAL: Failed to read config ['%s'] - %s\n", localFilename, err)
+				log.Printf("FATAL: Failed to read local config '%s' - [%v]", localFilename, err)
 				os.Exit(1)
 			}
 		}
