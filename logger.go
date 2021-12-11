@@ -237,6 +237,12 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 		line = 0
 	}
 
+	// See if this filename includes the jenkins path and concat if necessary
+	parts := strings.Split(file, "/")
+	if len(parts) > 1 {
+		file = parts[len(parts)-1]
+	}
+
 	format := fmt.Sprintf("%s:%d: %s - %s:", file, line, l.packageName, level)
 	if msg != "" {
 		format = fmt.Sprintf("%s: %d: %s - %s: %s", file, line, l.packageName, level, msg)
