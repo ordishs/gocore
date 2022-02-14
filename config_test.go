@@ -111,3 +111,25 @@ func TestGetMagicNumber(t *testing.T) {
 		t.Errorf("Expected ok=true and got ok=%+v", ok)
 	}
 }
+
+func TestEncryptDecrypt(t *testing.T) {
+	expected := "42"
+
+	res, _ := Config().Get("magicNumber")
+	if res != expected {
+		t.Errorf("Expected %q, got %q", expected, res)
+	}
+
+	t.Logf("%s -> %s\n", expected, res)
+}
+
+func TestEncryptDecryptInt(t *testing.T) {
+	expected := 42
+
+	res, _ := Config().GetInt("magicNumber")
+	if res != expected {
+		t.Errorf("Expected %q, got %q", expected, res)
+	}
+
+	t.Logf("%d -> %d\n", expected, res)
+}

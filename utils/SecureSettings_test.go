@@ -1,6 +1,9 @@
 package utils
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestEncryptDecrypt(t *testing.T) {
 	val := "secret"
@@ -15,6 +18,11 @@ func TestEncryptDecrypt(t *testing.T) {
 		t.Error(err)
 	}
 
+	expected := fmt.Sprintf("*EHE*%s", val)
+	if res != expected {
+		t.Errorf("Expected %q, got %q", expected, res)
+	}
+
 	t.Logf("%s -> %s -> %s\n", val, c, res)
 }
 
@@ -27,4 +35,20 @@ func TestEncryptSetting(t *testing.T) {
 	}
 
 	t.Logf("%s -> %s\n", val, c)
+}
+
+func TestDecryptSetting(t *testing.T) {
+	val := "*EHE*33976df1b21a57296e1bae89377d9227c4413a8f2d55c588ffdba21507a1"
+
+	res, err := DecryptSetting(val)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expected := "*EHE*42"
+	if res != expected {
+		t.Errorf("Expected %q, got %q", expected, res)
+	}
+
+	t.Logf("%s -> %s\n", val, res)
 }

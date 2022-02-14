@@ -50,6 +50,9 @@ func appCleanup() {
 }
 
 func start() {
+	secret, _ := gocore.Config().Get("secret")
+	log.Printf("secret=%s", secret)
+
 	waitCh := make(chan bool)
 
 	go func() {

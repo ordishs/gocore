@@ -307,8 +307,13 @@ func (c *Configuration) decrypt(val string) string {
 	return s
 }
 
-// Get (key, defaultValue)
 func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
+	s, ok := c.getInternal(key, defaultValue...)
+	return strings.TrimPrefix(s, "*EHE*"), ok
+}
+
+// Get (key, defaultValue)
+func (c *Configuration) getInternal(key string, defaultValue ...string) (string, bool) {
 	env := os.Getenv(key)
 	if env != "" {
 		return c.decrypt(env), true
@@ -411,8 +416,12 @@ func (c *Configuration) Stats() string {
 
 	// Now walk through the keys and look them up
 	for _, k := range keysArr {
-		v, _ := c.Get(k)
-		out = out + fmt.Sprintf("%s=%s\n", k, v)
+		v, _ := c.getInternal(k)
+		if strings.HasPrefix(v, "*EHE*") {
+			out = out + fmt.Sprintf("%s=********************\n", k)
+		} else {
+			out = out + fmt.Sprintf("%s=%s\n", k, v)
+		}
 	}
 
 	return out

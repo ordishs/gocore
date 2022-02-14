@@ -47,7 +47,7 @@ func encrypt(str string) (string, error) {
 	return fmt.Sprintf("*EHE*%x", ciphertext), nil
 }
 
-// DecryptSetting will return plaintext if the settings if prefixed with "*EHE*" - Extremely High Encryption
+// DecryptSetting will return *EHE* + plaintext if the settings if prefixed with "*EHE*" - Extremely High Encryption
 func DecryptSetting(str string) (string, error) {
 	if !strings.HasPrefix(str, "*EHE*") {
 		return str, nil
@@ -82,5 +82,5 @@ func DecryptSetting(str string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s", plaintext), nil
+	return fmt.Sprintf("*EHE*%s", plaintext), nil
 }
