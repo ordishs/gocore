@@ -80,6 +80,10 @@ func Log(packageName string) *Logger {
 			showTimestamp: Config().GetBool("logger_show_timestamps", true),
 		}
 
+		if !logger.showTimestamp {
+			log.SetFlags(0)
+		}
+
 		SetPackageName(packageName)
 
 		// Run a listener on a Unix socket
