@@ -42,9 +42,10 @@ type loggerConfig struct {
 
 // Logger comment
 type Logger struct {
-	packageName string
-	colour      bool
-	conf        loggerConfig
+	packageName   string
+	colour        bool
+	conf          loggerConfig
+	showTimestamp bool
 }
 
 var (
@@ -76,6 +77,7 @@ func Log(packageName string) *Logger {
 					sockets: make(map[net.Conn]string),
 				},
 			},
+			showTimestamp: Config().GetBool("logger_show_timestamps", true),
 		}
 
 		SetPackageName(packageName)
@@ -258,7 +260,11 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 		}
 	}
 
-	s := time.Now().UTC().Format("2006-01-02 15:04:05.000 ")
+	var s string
+
+	if l.showTimestamp {
+		s += time.Now().UTC().Format("2006-01-02 15:04:05.000 ")
+	}
 
 	s += fmt.Sprintf(format, args...)
 

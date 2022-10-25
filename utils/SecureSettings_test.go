@@ -38,7 +38,7 @@ func TestEncryptSetting(t *testing.T) {
 }
 
 func TestDecryptSetting(t *testing.T) {
-	val := "*EHE*33976df1b21a57296e1bae89377d9227c4413a8f2d55c588ffdba21507a1"
+	val := "*EHE*ad65473d70fc29d28823f7de3314bde3430d0b01b3cc2bc9556fdd343119265f400770683389a9ee15a8dd824f07f30a86000998dfee69ecf826436d55df"
 
 	res, err := DecryptSetting(val)
 	if err != nil {

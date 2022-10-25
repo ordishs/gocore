@@ -327,7 +327,7 @@ func (c *Configuration) getInternal(key string, defaultValue ...string) (string,
 		ok  bool
 	)
 
-	// Start with a copy of the context, i.e. "live.eupriv"
+	// Start with a copy of the context, i.e. "live.context"
 	k := key
 	if c.context != "" {
 		k += "." + c.context

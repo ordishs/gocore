@@ -13,19 +13,19 @@
  */
 /**
  *
- * @description Create a sortable table with multi-column sorting capabilitys
+ * @description Create a sortable table with multi-column sorting capabilities
  * 
  * @example $('table').tablesorter();
  * @desc Create a simple tablesorter interface.
  *
  * @example $('table').tablesorter({ sortList:[[0,0],[1,0]] });
- * @desc Create a tablesorter interface and sort on the first and secound column in ascending order.
+ * @desc Create a tablesorter interface and sort on the first and second column in ascending order.
  * 
  * @example $('table').tablesorter({ headers: { 0: { sorter: false}, 1: {sorter: false} } });
- * @desc Create a tablesorter interface and disableing the first and secound column headers.
+ * @desc Create a tablesorter interface and disabling the first and second column headers.
  * 
  * @example $('table').tablesorter({ 0: {sorter:"integer"}, 1: {sorter:"currency"} });
- * @desc Create a tablesorter interface and set a column parser for the first and secound column.
+ * @desc Create a tablesorter interface and set a column parser for the first and second column.
  * 
  * 
  * @param Object settings An object literal containing key/value pairs to provide optional settings.
@@ -39,7 +39,7 @@
  * @option String cssDesc (optional) 			A string of the class name to be appended to sortable tr elements in the thead on a descending sort. 
  * 												Default value: "headerSortDown"
  * 
- * @option String sortInitialOrder (optional) 	A string of the inital sorting order can be asc or desc. 
+ * @option String sortInitialOrder (optional) 	A string of the initial sorting order can be asc or desc. 
  * 												Default value: "asc"
  * 
  * @option String sortMultisortKey (optional) 	A string of the multi-column sort key. 
@@ -67,14 +67,14 @@
  * 												Default value: null
  * 
  * @option Boolean widthFixed (optional) 		Boolean flag indicating if tablesorter should apply fixed widths to the table columns.
- * 												This is usefull when using the pager companion plugin.
+ * 												This is useful when using the pager companion plugin.
  * 												This options requires the dimension jquery plugin.
  * 												Default value: false
  *
  * @option Boolean cancelSelection (optional) 	Boolean flag indicating if tablesorter should cancel selection of the table headers text.
  * 												Default value: true
  *
- * @option Boolean debug (optional) 			Boolean flag indicating if tablesorter should display debuging information usefull for development.
+ * @option Boolean debug (optional) 			Boolean flag indicating if tablesorter should display debugging information useful for development.
  *
  * @type jQuery
  *
@@ -113,7 +113,7 @@
 				debug: false
 			};
 			
-			/* debuging utils */
+			/* debugging utils */
 			function benchmark(s,d) {
 				log(s + "," + (new Date().getTime() - d.getTime()) + "ms");
 			}
@@ -443,7 +443,7 @@
 					dynamicExp += "else { ";
 				}
 				
-				// if value is the same keep orignal order	
+				// if value is the same keep original order	
 				var orgOrderCol = cache.normalized[0].length - 1;
 				dynamicExp += "return a[" + orgOrderCol + "]-b[" + orgOrderCol + "];";
 						
@@ -535,7 +535,7 @@
 							// get current column sort order
 							this.order = this.count++ % 2;
 							
-							// user only whants to sort on one column
+							// user only wants to sort on one column
 							if(!e[config.sortMultiSortKey]) {
 								
 								// flush the sort list
@@ -555,7 +555,7 @@
 							
 							// multi column sorting
 							} else {
-								// the user has clicked on an all ready sortet column.
+								// the user has clicked on an all ready sorted column.
 								if(isValueInArray(i,config.sortList)) {	 
 									
 									// revers the sorting direction for all tables.
