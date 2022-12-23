@@ -3,12 +3,15 @@ package gocore
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -390,6 +393,39 @@ func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
 	return i
 }
 
+func (c *Configuration) GetURL(key string, defaultValue ...string) (*url.URL, error, bool) {
+	str, ok := c.Get(key)
+	if str == "" || !ok {
+		if len(defaultValue) > 0 {
+			str = defaultValue[0]
+			ok = false
+		} else {
+			return nil, errors.New("URL is missing"), false
+		}
+	}
+
+	// Before we parse the URL, we need to decrypt any EHE tokens.
+	re := regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
+	ehes := re.FindAllString(str, -1)
+
+	for _, ehe := range ehes {
+		decrypted, err := utils.DecryptSetting(ehe)
+		if err != nil {
+			// Ignore.  The password will stay as it was.
+			continue
+		}
+		decrypted = strings.TrimPrefix(decrypted, "*EHE*")
+		str = strings.Replace(str, ehe, decrypted, 1)
+	}
+
+	u, err := url.ParseRequestURI(str)
+	if err != nil {
+		return nil, err, false
+	}
+
+	return u, nil, ok
+}
+
 // Stats comment
 func (c *Configuration) Stats() string {
 	out := "\nSETTINGS_CONTEXT\n----------------\n"
@@ -414,14 +450,15 @@ func (c *Configuration) Stats() string {
 	}
 	sort.Strings(keysArr)
 
+	re := regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
+
 	// Now walk through the keys and look them up
 	for _, k := range keysArr {
 		v, _ := c.getInternal(k)
-		if strings.HasPrefix(v, "*EHE*") {
-			out = out + fmt.Sprintf("%s=********************\n", k)
-		} else {
-			out = out + fmt.Sprintf("%s=%s\n", k, v)
-		}
+
+		v = re.ReplaceAllString(v, "********************")
+
+		out = out + fmt.Sprintf("%s=%s\n", k, v)
 	}
 
 	return out

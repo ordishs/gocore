@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/ordishs/gocore/utils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetExistingKey(t *testing.T) {
@@ -132,4 +134,72 @@ func TestEncryptDecryptInt(t *testing.T) {
 	}
 
 	t.Logf("%d -> %d\n", expected, res)
+}
+
+func TestURL1(t *testing.T) {
+	res, err, found := Config().GetURL("url1")
+	require.NoError(t, err)
+
+	password, set := res.User.Password()
+	require.True(t, set)
+
+	assert.Equalf(t, "http", res.Scheme, "scheme is wrong")
+	assert.Equalf(t, "user", res.User.Username(), "username is wrong")
+	assert.Equalf(t, "password", password, "password is wrong")
+	assert.Equalf(t, "localhost", res.Hostname(), "hostname is wrong")
+	assert.Equalf(t, "8080", res.Port(), "port is wrong")
+	assert.Equalf(t, "", res.Path, "path is wrong")
+
+	t.Logf("%v, %v", res, found)
+}
+
+func TestURLWithEncryptedPassword(t *testing.T) {
+	res, err, found := Config().GetURL("url2")
+	require.NoError(t, err)
+
+	password, set := res.User.Password()
+	require.True(t, set)
+
+	assert.Equalf(t, "http", res.Scheme, "scheme is wrong")
+	assert.Equalf(t, "user", res.User.Username(), "username is wrong")
+	assert.Equalf(t, "password", password, "password is wrong")
+	assert.Equalf(t, "localhost", res.Hostname(), "hostname is wrong")
+	assert.Equalf(t, "8080", res.Port(), "port is wrong")
+	assert.Equalf(t, "", res.Path, "path is wrong")
+
+	t.Logf("%v, %v", res, found)
+}
+
+func TestURL3(t *testing.T) {
+	res, err, found := Config().GetURL("url3")
+	require.NoError(t, err)
+
+	password, set := res.User.Password()
+	require.False(t, set)
+
+	assert.Equalf(t, "p2p", res.Scheme, "scheme is wrong")
+	assert.Equalf(t, "", res.User.Username(), "username is wrong")
+	assert.Equalf(t, "", password, "password is wrong")
+	assert.Equalf(t, "localhost", res.Hostname(), "hostname is wrong")
+	assert.Equalf(t, "8333", res.Port(), "port is wrong")
+	assert.Equalf(t, "", res.Path, "path is wrong")
+
+	t.Logf("%v, %v", res, found)
+}
+
+func TestURL4(t *testing.T) {
+	res, err, found := Config().GetURL("url4")
+	require.NoError(t, err)
+
+	password, set := res.User.Password()
+	require.False(t, set)
+
+	assert.Equalf(t, "zmq", res.Scheme, "scheme is wrong")
+	assert.Equalf(t, "", res.User.Username(), "username is wrong")
+	assert.Equalf(t, "", password, "password is wrong")
+	assert.Equalf(t, "localhost", res.Hostname(), "hostname is wrong")
+	assert.Equalf(t, "28332", res.Port(), "port is wrong")
+	assert.Equalf(t, "", res.Path, "path is wrong")
+
+	t.Logf("%v, %v", res, found)
 }
