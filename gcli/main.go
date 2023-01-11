@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	socketDir := flag.String("socketDir", "/tmp/gocore", "the folder where gcli will look for unix domain sockets")
+	socketDir := flag.String("socketDir", "/tmp/gocore", "the folder where gocore will look for unix domain sockets")
 	packageName := flag.String("packageName", "", "the name of the unix domain socket.  This must be specified if there is more than 1 gocore process running")
 	keepAlive := flag.Bool("keepAlive", false, "keep the socket open (useful for trace)")
 	flag.Parse()
@@ -89,5 +89,4 @@ func main() {
 	}()
 
 	wg.Wait()
-	return
 }

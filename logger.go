@@ -229,7 +229,7 @@ func (l *Logger) Panicf(msg string, args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	log.Panic(fmt.Sprintf(msg, args...))
+	log.Panicf(fmt.Sprintf(msg, args...))
 }
 
 func (l *Logger) output(level, colour, msg string, args ...interface{}) {
@@ -239,6 +239,11 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 		if !l.isDebugEnabled() || !utils.IsRegexMatch(l.conf.debug.regex, fmt.Sprintf(msg, args...)) {
 			print = false
 		}
+	}
+
+	// We want the level to be 5 chars.  Append spaces if necessary
+	for i := len(level); i < 5; i++ {
+		level += " "
 	}
 
 	if l.colour && colour != "" {
@@ -257,9 +262,11 @@ func (l *Logger) output(level, colour, msg string, args ...interface{}) {
 		file = parts[len(parts)-1]
 	}
 
-	format := fmt.Sprintf("%s:%d: %s - %s:", file, line, l.packageName, level)
+	fileLine := fmt.Sprintf("%s:%d", file, line)
+
+	format := fmt.Sprintf("| %-20s| %-5s| %s |", fileLine, l.packageName, level)
 	if msg != "" {
-		format = fmt.Sprintf("%s: %d: %s - %s: %s", file, line, l.packageName, level, msg)
+		format = fmt.Sprintf("| %-20s| %-5s| %s | %s", fileLine, l.packageName, level, msg)
 	}
 
 	if print {

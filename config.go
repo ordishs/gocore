@@ -249,7 +249,7 @@ func logWarnf(msg string, args ...interface{}) {
 }
 
 func postJSON(url string, j []byte) (string, error) {
-	if j == nil || len(j) == 0 || url == "" {
+	if len(j) == 0 || url == "" {
 		logWarnf("Advertising post ERROR empty advertise URL |%v| or JSON\n", url)
 		return "", fmt.Errorf("Error posting JSON")
 	}
