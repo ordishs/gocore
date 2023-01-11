@@ -49,12 +49,14 @@ type Logger struct {
 }
 
 var (
-	logger     *Logger
-	loggerOnce sync.Once
-	socketDIR  string
+	mu        sync.RWMutex
+	loggers   map[string]*Logger
+	socketDIR string
 )
 
 func init() {
+	loggers = make(map[string]*Logger)
+
 	socketDIR, _ = Config().Get("socketDIR")
 	if socketDIR == "" {
 		socketDIR = "/tmp/gocore"
@@ -65,64 +67,70 @@ func init() {
 	}
 }
 
-// Log comment
 func Log(packageName string) *Logger {
-	loggerOnce.Do(func() {
-		logger = &Logger{
-			packageName: packageName,
-			colour:      true,
-			conf: loggerConfig{
-				mu: new(sync.RWMutex),
-				trace: traceSettings{
-					sockets: make(map[net.Conn]string),
-				},
+	mu.Lock()
+	defer mu.Unlock()
+
+	logger, found := loggers[packageName]
+	if found {
+		return logger
+	}
+
+	logger = &Logger{
+		packageName: packageName,
+		colour:      true,
+		conf: loggerConfig{
+			mu: new(sync.RWMutex),
+			trace: traceSettings{
+				sockets: make(map[net.Conn]string),
 			},
-			showTimestamp: Config().GetBool("logger_show_timestamps", true),
+		},
+		showTimestamp: Config().GetBool("logger_show_timestamps", true),
+	}
+
+	if !logger.showTimestamp {
+		log.SetFlags(0)
+	}
+
+	SetPackageName(packageName)
+
+	// Run a listener on a Unix socket
+	go func() {
+		n := fmt.Sprintf("%s/%s.sock", socketDIR, strings.ToUpper(packageName))
+
+		// Remove the file if it exists...
+		os.Remove(n)
+
+		ln, err := net.Listen("unix", n)
+		if err != nil {
+			logger.Fatalf("LOGGER: listen error: %+v", err)
 		}
+		defer ln.Close()
+		defer os.Remove(n)
 
-		if !logger.showTimestamp {
-			log.SetFlags(0)
-		}
+		// Add the socket so we can close it down when Fatal or Panic are called
+		logger.conf.socket = ln
 
-		SetPackageName(packageName)
+		logger.Infof("Socket created. Connect with 'nc -U %s'", n)
 
-		// Run a listener on a Unix socket
-		go func() {
-			n := fmt.Sprintf("%s/%s.sock", socketDIR, strings.ToUpper(packageName))
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 
-			// Remove the file if it exists...
-			os.Remove(n)
+		logger.handleShutdown(ln, ch)
 
-			ln, err := net.Listen("unix", n)
+		for {
+			fd, err := ln.Accept()
 			if err != nil {
-				logger.Fatalf("LOGGER: listen error: %+v", err)
-			}
-			defer ln.Close()
-			defer os.Remove(n)
-
-			// Add the socket so we can close it down when Fatal or Panic are called
-			logger.conf.socket = ln
-
-			logger.Infof("Socket created. Connect with 'nc -U %s'", n)
-
-			ch := make(chan os.Signal, 1)
-			signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-
-			logger.handleShutdown(ln, ch)
-
-			for {
-				fd, err := ln.Accept()
-				if err != nil {
-					logger.Warnf("Accept error: %+v", err)
-					return
-				}
-
-				logger.handleIncomingMessage(fd)
+				logger.Warnf("Accept error: %+v", err)
+				return
 			}
 
-		}()
+			logger.handleIncomingMessage(fd)
+		}
 
-	})
+	}()
+
+	loggers[packageName] = logger
 
 	return logger
 }

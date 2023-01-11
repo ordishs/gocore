@@ -36,11 +36,13 @@ var (
 	address     atomic.Value
 	version     atomic.Value
 	commit      atomic.Value
+	logger      *Logger
 )
 
 // SetInfo comment
 func SetInfo(name string, ver string, com string) {
 	packageName.Store(name)
+	logger = Log(name)
 	version.Store(ver)
 	commit.Store(com)
 }
