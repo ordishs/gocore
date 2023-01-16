@@ -31,11 +31,51 @@ type traceSettings struct {
 	sockets map[net.Conn]string
 }
 
+type logLevel int
+
+const (
+	DEBUG logLevel = iota
+	INFO
+	WARN
+	ERROR
+	FATAL
+	PANIC
+)
+
+var (
+	logLevel_name = map[int]string{
+		0: "DEBUG",
+		1: "INFO",
+		2: "WARN",
+		3: "ERROR",
+		4: "FATAL",
+		5: "PANIC",
+	}
+
+	logLevel_value = map[string]int{
+		"DEBUG": 0,
+		"INFO":  1,
+		"WARN":  2,
+		"ERROR": 3,
+		"FATAL": 4,
+		"PANIC": 5,
+	}
+)
+
+func (ll logLevel) String() string {
+	return logLevel_name[int(ll)]
+}
+
+func NewLogLevelFromString(s string) logLevel {
+	s = strings.ToUpper(s)
+	return logLevel(logLevel_value[s])
+}
+
 // LoggerConfig comment
 type loggerConfig struct {
 	mu       *sync.RWMutex
 	socket   net.Listener
-	debug    debugSettings
+	logLevel logLevel
 	trace    traceSettings
 	samplers []*sampler.Sampler
 }
@@ -67,7 +107,7 @@ func init() {
 	}
 }
 
-func Log(packageName string) *Logger {
+func Log(packageName string, logLevelOption ...logLevel) *Logger {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -76,11 +116,17 @@ func Log(packageName string) *Logger {
 		return logger
 	}
 
+	ll := INFO
+	if len(logLevelOption) > 0 {
+		ll = logLevelOption[0]
+	}
+
 	logger = &Logger{
 		packageName: packageName,
 		colour:      true,
 		conf: loggerConfig{
-			mu: new(sync.RWMutex),
+			mu:       new(sync.RWMutex),
+			logLevel: ll,
 			trace: traceSettings{
 				sockets: make(map[net.Conn]string),
 			},
@@ -106,6 +152,7 @@ func Log(packageName string) *Logger {
 			logger.Fatalf("LOGGER: listen error: %+v", err)
 		}
 		defer ln.Close()
+
 		defer os.Remove(n)
 
 		// Add the socket so we can close it down when Fatal or Panic are called
@@ -146,58 +193,58 @@ func (l *Logger) write(c io.Writer, s string) error {
 // Debug Comment
 func (l *Logger) Debug(args ...interface{}) {
 	msg := ""
-	l.output("DEBUG", "blue", msg, args...)
+	l.output(DEBUG, "blue", msg, args...)
 }
 
 // Debugf Comment
 func (l *Logger) Debugf(msg string, args ...interface{}) {
-	l.output("DEBUG", "blue", msg, args...)
+	l.output(DEBUG, "blue", msg, args...)
 }
 
 // Info comment
 func (l *Logger) Info(args ...interface{}) {
 	msg := ""
-	l.output("INFO", "green", msg, args...)
+	l.output(INFO, "green", msg, args...)
 }
 
 // Infof comment
 func (l *Logger) Infof(msg string, args ...interface{}) {
-	l.output("INFO", "green", msg, args...)
+	l.output(INFO, "green", msg, args...)
 }
 
 // Warn comment
 func (l *Logger) Warn(args ...interface{}) {
 	msg := ""
-	l.output("WARN", "yellow", msg, args...)
+	l.output(WARN, "yellow", msg, args...)
 }
 
 // Warnf comment
 func (l *Logger) Warnf(msg string, args ...interface{}) {
-	l.output("WARN", "yellow", msg, args...)
+	l.output(WARN, "yellow", msg, args...)
 }
 
 // Error comment
 func (l *Logger) Error(args ...interface{}) {
 	msg := ""
-	l.output("ERROR", "red", msg, args...)
+	l.output(ERROR, "red", msg, args...)
 }
 
 // Errorf comment
 func (l *Logger) Errorf(msg string, args ...interface{}) {
-	l.output("ERROR", "red", msg, args...)
+	l.output(ERROR, "red", msg, args...)
 }
 
 // ErrorWithStack comment
 func (l *Logger) ErrorWithStack(msg string, args ...interface{}) {
 	args = append(args, l.getStack())
 	msg = msg + "\n%s"
-	l.output("ERROR", "red", msg, args...)
+	l.output(ERROR, "red", msg, args...)
 }
 
 // Fatal Comment
 func (l *Logger) Fatal(args ...interface{}) {
 	msg := ""
-	l.output("FATAL", "cyan", msg, args...)
+	l.output(FATAL, "cyan", msg, args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
@@ -206,7 +253,7 @@ func (l *Logger) Fatal(args ...interface{}) {
 
 // Fatalf Comment
 func (l *Logger) Fatalf(msg string, args ...interface{}) {
-	l.output("FATAL", "cyan", fmt.Sprintf(msg, args...))
+	l.output(FATAL, "cyan", fmt.Sprintf(msg, args...))
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
@@ -216,7 +263,7 @@ func (l *Logger) Fatalf(msg string, args ...interface{}) {
 // Panic Comment
 func (l *Logger) Panic(args ...interface{}) {
 	msg := ""
-	l.output("PANIC", "magenta", msg, args...)
+	l.output(PANIC, "magenta", msg, args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
@@ -225,23 +272,21 @@ func (l *Logger) Panic(args ...interface{}) {
 
 // Panicf Comment
 func (l *Logger) Panicf(msg string, args ...interface{}) {
-	l.output("PANIC", "magenta", msg, args...)
+	l.output(PANIC, "magenta", msg, args...)
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
 	log.Panicf(fmt.Sprintf(msg, args...))
 }
 
-func (l *Logger) output(level, colour, msg string, args ...interface{}) {
-	print := true
-
-	if level == "DEBUG" {
-		if !l.isDebugEnabled() || !utils.IsRegexMatch(l.conf.debug.regex, fmt.Sprintf(msg, args...)) {
-			print = false
-		}
+func (l *Logger) output(ll logLevel, colour, msg string, args ...interface{}) {
+	print, canReturn := l.loggingNecessary(ll)
+	if canReturn {
+		return
 	}
 
 	// We want the level to be 5 chars.  Append spaces if necessary
+	level := ll.String()
 	for i := len(level); i < 5; i++ {
 		level += " "
 	}
@@ -313,7 +358,42 @@ func (l *Logger) getStack() string {
 func (l *Logger) isDebugEnabled() bool {
 	l.conf.mu.RLock()
 	defer l.conf.mu.RUnlock()
-	return l.conf.debug.enabled
+	return l.conf.logLevel == DEBUG
+}
+
+func (l *Logger) GetLogLevel() logLevel {
+	l.conf.mu.RLock()
+	defer l.conf.mu.RUnlock()
+	return l.conf.logLevel
+}
+
+func (l *Logger) LogLevel() int {
+	l.conf.mu.RLock()
+	defer l.conf.mu.RUnlock()
+	return int(l.conf.logLevel)
+}
+
+func (l *Logger) loggingNecessary(ll logLevel) (bool, bool) {
+	l.conf.mu.RLock()
+	defer l.conf.mu.RUnlock()
+
+	print := ll >= l.conf.logLevel
+
+	if l.conf.trace.sockets != nil && len(l.conf.trace.sockets) > 0 {
+		return print, false
+	}
+
+	if l.conf.samplers != nil && len(l.conf.samplers) > 0 {
+		return print, false
+	}
+
+	return print, !print
+}
+
+func (l *Logger) setLogLevel(ll logLevel) {
+	l.conf.mu.Lock()
+	defer l.conf.mu.Unlock()
+	l.conf.logLevel = ll
 }
 
 func (l *Logger) sendToTrace(s string, level string) {
@@ -356,10 +436,10 @@ func (l *Logger) handleIncomingMessage(c net.Conn) {
 			switch s[0] {
 			case "config":
 				l.handleConfig(s, c)
-			case "debug":
-				l.handleDebugAndTrace("DEBUG", s, c)
 			case "trace":
 				l.handleDebugAndTrace("TRACE", s, c)
+			case "loglevel":
+				l.handleLogLevel(s, c)
 			case "sample":
 				l.handleSample(s, c)
 			case "status":
@@ -525,6 +605,11 @@ func (l *Logger) handleConfig(r []string, c net.Conn) {
 	}
 }
 
+func (l *Logger) handleLogLevel(r []string, c net.Conn) {
+	ll := NewLogLevelFromString(r[1])
+	l.setLogLevel(ll)
+}
+
 func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 	if len(r) <= 1 {
 		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
@@ -538,9 +623,6 @@ func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 			return
 		}
 		switch context {
-		case "DEBUG":
-			l.toggleDebug(false, "")
-			l.sendStatus(c)
 		case "TRACE":
 			l.conf.mu.Lock()
 			delete(l.conf.trace.sockets, c)
@@ -562,9 +644,6 @@ func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 		}
 
 		switch context {
-		case "DEBUG":
-			l.toggleDebug(true, reg)
-			l.sendStatus(c)
 		case "TRACE":
 			l.conf.mu.Lock()
 			l.conf.trace.sockets[c] = reg
@@ -579,30 +658,11 @@ func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 	}
 }
 
-func (l *Logger) toggleDebug(enabled bool, regex string) {
-	l.conf.mu.Lock()
-	defer l.conf.mu.Unlock()
-
-	l.conf.debug.enabled = enabled
-	l.conf.debug.regex = regex
-
-	return
-}
-
 func (l *Logger) sendStatus(c net.Conn) {
 	l.conf.mu.RLock()
 	defer l.conf.mu.RUnlock()
 
-	res := ""
-	if l.conf.debug.enabled {
-		if l.conf.debug.regex != "" {
-			res += fmt.Sprintf("  DEBUG is ON filtered by a regex of %q\n", l.conf.debug.regex)
-		} else {
-			res += "  DEBUG is ON with no filter\n"
-		}
-	} else {
-		res += "  DEBUG is OFF\n"
-	}
+	res := fmt.Sprintf("  LOG LEVEL is %s\n", l.conf.logLevel)
 
 	if regex, ok := l.conf.trace.sockets[c]; ok {
 		if regex != "" {
