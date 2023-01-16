@@ -114,6 +114,8 @@ func Config() *Configuration {
 		env := os.Getenv("SETTINGS_CONTEXT")
 		if env != "" {
 			c.context = env
+		} else {
+			c.context = "dev"
 		}
 
 		c.confs = make(map[string]string, 0)
@@ -432,10 +434,10 @@ func (c *Configuration) GetURL(key string, defaultValue ...string) (*url.URL, er
 func (c *Configuration) Stats() string {
 	out := "\nSETTINGS_CONTEXT\n----------------\n"
 
-	if c.context != "" {
+	if c.context != "dev" {
 		out = out + c.context
 	} else {
-		out = out + "Not set"
+		out = out + "Not set (dev)"
 	}
 
 	out = out + "\n\nSETTINGS\n--------\n"
