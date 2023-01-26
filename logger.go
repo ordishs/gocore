@@ -7,12 +7,10 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/signal"
 	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/mgutz/ansi"
@@ -159,11 +157,6 @@ func Log(packageName string, logLevelOption ...logLevel) *Logger {
 		logger.conf.socket = ln
 
 		logger.Infof("Socket created. Connect with 'nc -U %s'", n)
-
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-
-		logger.handleShutdown(ln, ch)
 
 		for {
 			fd, err := ln.Accept()
@@ -339,16 +332,6 @@ func (l *Logger) output(ll logLevel, colour, msg string, args ...interface{}) {
 	l.sendToTrace(s, level)
 
 	l.sendToSample(s, level)
-}
-
-func (l *Logger) handleShutdown(ln net.Listener, c chan os.Signal) {
-	// Shut down the socket if the application closes
-	go func() {
-		<-c
-		l.Infof("LOGGER: Shutting down unix socket for Logger")
-		ln.Close()
-		os.Exit(0)
-	}()
 }
 
 func (l *Logger) getStack() string {
