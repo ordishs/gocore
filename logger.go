@@ -672,8 +672,8 @@ func (l *Logger) help(c net.Conn) {
 
 	cmds := []command{
 		{
-			cmd:         "debug [on {regex} | off] ",
-			description: "Turn on/off debug mode with an optional Regex pattern",
+			cmd:         "loglevel [DEBUG | INFO | WARN | ERROR] ",
+			description: "Set loglevel for this instance",
 		},
 		{
 			cmd:         "trace [on {regex} | off] ",

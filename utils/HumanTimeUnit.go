@@ -2,21 +2,23 @@ package utils
 
 import (
 	"fmt"
+	"time"
 )
 
-// HumanTimeUnit comment
-func HumanTimeUnit(nanos int64) string {
-	if nanos > 60000000000 {
-		return fmt.Sprintf("<span style='color: red'>%.2fm</span>", float64(nanos)/60000000000.0)
+func HumanTimeUnit(duration time.Duration) string {
+	colour := "black"
+
+	if duration > 60000000000 {
+		colour = "red"
 	}
 
-	if nanos > 1000000000 {
-		return fmt.Sprintf("<span style='color: green'>%.2fs</span>", float64(nanos)/1000000000.0)
+	if duration > 1000000000 {
+		colour = "green"
 	}
 
-	if nanos > 1000000 {
-		return fmt.Sprintf("<span style='color: blue'>%.2fms</span>", float64(nanos)/1000000.0)
+	if duration > 1000000 {
+		colour = "blue"
 	}
 
-	return fmt.Sprintf("%dns", nanos)
+	return fmt.Sprintf("<span style='color: %s'>%s</span>", colour, duration)
 }

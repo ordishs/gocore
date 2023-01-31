@@ -1,20 +1,39 @@
 package gocore
 
-// import (
-// 	"fmt"
-// 	"testing"
-// 	"time"
-// )
-
 // func TestNewStat(t *testing.T) {
-// 	s := NewStat("me")
-// 	now := time.Now().UTC().UnixNano()
-// 	s.AddTime(now - 2)
-// 	s.AddTime(now - 1)
-// 	NewStat("you")
+// 	now := time.Now().UTC()
+// 	_ = now
 
-// 	for k, v := range s.getRoot().children {
-// 		fmt.Println(k, v)
+// 	s1 := NewStat("level1 - ignore children", true)
+// 	_ = s1
+// 	// s1.processTime(now, 1*time.Second.Nanoseconds())
 
+// 	s2 := NewStat("level1 - include children", false)
+// 	_ = s2
+// 	// s2.processTime(now, 1*time.Second.Nanoseconds())
+
+// 	s1.NewStat("c1").processTime(now, 1*time.Second)
+// 	s2.NewStat("c2").processTime(now, 1*time.Second)
+
+// 	print(t, RootStat)
+
+// 	// t.Logf("%#v", RootStat)
+
+// 	// for _, v := range RootStat.children {
+// 	// 	fmt.Println(v)
+// 	// }
+
+// 	StartStatsServer("localhost:9006")
+
+// 	ch := make(chan bool)
+// 	<-ch
+
+// }
+
+// func print(t *testing.T, s *Stat) {
+// 	t.Log(s)
+
+// 	for _, v := range s.children {
+// 		print(t, v)
 // 	}
 // }

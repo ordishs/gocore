@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -57,7 +57,7 @@ func processFile(m map[string]string, filename string) (string, error) {
 	if err != nil {
 		return filename, err
 	}
-	bytes, err := ioutil.ReadFile(f)
+	bytes, err := os.ReadFile(f)
 
 	for err != nil && f != "/"+filename {
 
@@ -68,7 +68,7 @@ func processFile(m map[string]string, filename string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		bytes, err = ioutil.ReadFile(f)
+		bytes, err = os.ReadFile(f)
 	}
 
 	if err != nil {
@@ -271,7 +271,7 @@ func postJSON(url string, j []byte) (string, error) {
 
 	// fmt.Println("response Status:", resp.Status)
 	// fmt.Println("response Headers:", resp.Header)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	// fmt.Println("response Body:", string(body))
 	if err != nil {
 		return "", err

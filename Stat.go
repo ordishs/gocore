@@ -1,10 +1,12 @@
 package gocore
 
 import (
+	"embed"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -12,42 +14,190 @@ import (
 	"github.com/ordishs/gocore/utils"
 )
 
-// Stat comment
-type Stat struct {
-	mu         sync.RWMutex
-	key        string
-	parent     *Stat
-	children   map[string]*Stat
-	firstNanos int64
-	lastNanos  int64
-	minNanos   int64
-	maxNanos   int64
-	total      int64
-	count      int64
-	firstTime  time.Time
-	lastTime   time.Time
-	addChildTime bool
-	addChildCount bool
-}
+const REPORTED_TIME_THRESHOLD_MINUTES = 5
+const REPORTED_TIME_THRESHOLD = REPORTED_TIME_THRESHOLD_MINUTES * time.Minute
 
 var (
+	//go:embed all:embed/*
+
+	res embed.FS
+
 	initTime = time.Now().UTC()
-	rootItem = &Stat{
-		key:      "root",
-		children: make(map[string]*Stat),
+	RootStat = &Stat{
+		key:                "root",
+		children:           make(map[string]*Stat),
+		ignoreChildUpdates: true,
 	}
 )
 
+// Stat comment
+type Stat struct {
+	mu                 sync.RWMutex
+	key                string
+	parent             *Stat
+	children           map[string]*Stat
+	ignoreChildUpdates bool
+	firstDuration      time.Duration
+	lastDuration       time.Duration
+	minDuration        time.Duration
+	maxDuration        time.Duration
+	totalDuration      time.Duration
+	count              int64
+	firstTime          time.Time
+	lastTime           time.Time
+}
+
+func NewStat(key string, options ...bool) *Stat {
+	return RootStat.NewStat(key, options...)
+}
+
+func (s *Stat) NewStat(key string, options ...bool) *Stat {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stat, ok := s.children[key]
+	if !ok {
+		stat = &Stat{
+			key:      key,
+			parent:   s,
+			children: make(map[string]*Stat),
+		}
+
+		if len(options) > 0 {
+			stat.ignoreChildUpdates = options[0]
+		}
+
+		s.children[key] = stat
+	}
+
+	return stat
+}
+
+func (s *Stat) getChild(key string) *Stat {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.children[key]
+}
+
+func (s *Stat) processTime(now time.Time, duration time.Duration) {
+	if duration > REPORTED_TIME_THRESHOLD {
+		log.Printf("Stat: time for %s is greater than %d minutes", s.key, REPORTED_TIME_THRESHOLD_MINUTES)
+		return
+	}
+
+	s.mu.Lock()
+
+	s.lastTime = now
+	s.lastDuration = duration
+
+	if s.count == 0 {
+		s.firstTime = now
+		s.firstDuration = duration
+		s.minDuration = duration
+		s.maxDuration = duration
+	} else {
+		if duration < s.minDuration {
+			s.minDuration = duration
+		}
+		if duration > s.maxDuration {
+			s.maxDuration = duration
+		}
+	}
+	s.totalDuration += duration
+	s.count++
+
+	s.mu.Unlock()
+
+	if s.parent != nil && !s.parent.ignoreChildUpdates {
+		s.parent.processTime(now, duration)
+	}
+}
+
+// AddTime comment
+func (s *Stat) AddTime(startNanos int64) int64 {
+	now := time.Now().UTC()
+
+	endNanos := now.UnixNano()
+
+	if endNanos < startNanos {
+		log.Printf("%s: EndNanos is less than StartNanos", s.key)
+		return endNanos
+	}
+
+	diff := endNanos - startNanos
+
+	s.processTime(now, time.Duration(diff))
+
+	return endNanos
+}
+
+func (s *Stat) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.firstDuration = 0
+	s.lastDuration = 0
+	s.minDuration = 0
+	s.maxDuration = 0
+	s.totalDuration = 0
+	s.count = 0
+	s.firstTime = time.Time{}
+	s.lastTime = time.Time{}
+
+	for _, stat := range s.children {
+		stat.reset()
+	}
+}
+
+func CurrentNanos() int64 {
+	return time.Now().UnixNano()
+}
+
+func (s *Stat) average() time.Duration {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.count == 0 {
+		return 0
+	}
+
+	return time.Duration(s.totalDuration.Nanoseconds() / s.count)
+}
+
+func (s *Stat) String() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return fmt.Sprintf("%s (%t): %s (%d)", s.key, s.ignoreChildUpdates, utils.HumanTime(s.totalDuration), s.count)
+}
+
+func StartStatsServer(addr string) {
+	logger := Log("stats")
+
+	http.HandleFunc("/stats", handleStats)
+	http.HandleFunc("/reset", resetStats)
+	http.HandleFunc("/", handleOther)
+
+	logger.Infof("Starting StatsServer on http://%s/stats", addr)
+	var err = http.ListenAndServe(addr, nil)
+
+	if err != nil {
+		logger.Panicf("Server failed starting. Error: %s", err)
+	}
+}
+
 func handleStats(w http.ResponseWriter, r *http.Request) {
 	keysParam := r.URL.Query().Get("key")
-	rootItem.mu.RLock()
-	defer rootItem.mu.RUnlock()
-	rootItem.printStatisticsHTML(w, rootItem, keysParam)
+	RootStat.mu.RLock()
+	defer RootStat.mu.RUnlock()
+
+	RootStat.printStatisticsHTML(w, RootStat, keysParam)
 }
 
 func resetStats(w http.ResponseWriter, r *http.Request) {
 	keysParam := r.URL.Query().Get("key")
-	item := rootItem
+	item := RootStat
 
 	if keysParam != "" {
 		for _, key := range strings.Split(keysParam, ",") {
@@ -59,162 +209,53 @@ func resetStats(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/stats", http.StatusSeeOther)
 }
 
-// StartStatsServer comment
-func StartStatsServer(addr string) {
-	fs := http.FileServer(http.Dir("."))
-	http.Handle("/js/", fs)
-	http.Handle("/css/", fs)
-	http.HandleFunc("/stats", handleStats)
-	http.HandleFunc("/reset", resetStats)
+func handleOther(w http.ResponseWriter, r *http.Request) {
+	var resource string
 
-	logger.Infof("Starting StatsServer on http://%s/stats", addr)
-	var err = http.ListenAndServe(addr, nil)
+	path := r.URL.Path
 
-	if err != nil {
-		logger.Panicf("Server failed starting. Error: %s", err)
-	}
-}
-
-// NewStat comment.  The optional boolean args are for specifying
-// if the childTime or childCount should be aggregated.
-func NewStat(key string, options ...bool) *Stat {
-
-	parent := rootItem
-
-	parent.mu.Lock()
-	defer parent.mu.Unlock()
-
-	s, ok := parent.children[key]
-	if !ok {
-		s = &Stat{
-			key:      key,
-			parent:   parent,
-			children: make(map[string]*Stat),
-		}
-
-		if len(options) == 2 {
-			s.addChildTime = options[0]		
-			s.addChildCount = options[1]
-		} else if len(options) == 1 {
-			s.addChildTime = options[0]
-		}
-
-		parent.children[key] = s
-	}
-
-	return s
-}
-
-// NewStat comment
-func (s *Stat) NewStat(key string) *Stat {
-
-	parent := s
-
-	parent.mu.Lock()
-	defer parent.mu.Unlock()
-
-	s, ok := parent.children[key]
-	if !ok {
-		s = &Stat{
-			key:      key,
-			parent:   parent,
-			children: make(map[string]*Stat),
-		}
-		parent.children[key] = s
-	}
-
-	return s
-}
-
-func (s *Stat) getChild(name string) *Stat {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.children[name]
-}
-
-func (s *Stat) processTime(now time.Time, diff int64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.lastTime = now
-	s.lastNanos = diff
-
-	if s.count == 0 {
-		s.firstTime = now
-		s.firstNanos = diff
-		s.minNanos = diff
-		s.maxNanos = diff
+	if path == "/" {
+		resource = "embed/index.html"
 	} else {
-		if diff < s.minNanos {
-			s.minNanos = diff
+		resource = fmt.Sprintf("embed%s", path)
+	}
+
+	b, err := res.ReadFile(resource)
+	if err != nil {
+		// Just in case we're missing the /index.html, add it and try again...
+		resource += "/index.html"
+		b, err = res.ReadFile(resource)
+		if err != nil {
+			resource = "embed/index.html"
+			b, err = res.ReadFile(resource)
+			if err != nil {
+				w.Header().Set("Content-Type", "text/plain")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte("Not found"))
+				return
+			}
 		}
-		if diff > s.maxNanos {
-			s.maxNanos = diff
-		}
-	}
-	s.total += diff
-	s.count++
-}
-
-// AddTime comment
-func (s *Stat) AddTime(startNanos int64) int64 {
-	now := time.Now().UTC()
-
-	endNanos := now.UnixNano()
-
-	if endNanos < startNanos {
-		log.Printf("%s: EndNanos is less than StartNanos", s.key)
-		return 0
 	}
 
-	diff := endNanos - startNanos
+	var mimeType string
 
-	s.processTime(now, diff)
-
-	if s.parent != nil {
-		s.parent.processTime(now, diff)
+	extension := filepath.Ext(resource)
+	switch extension {
+	case ".css":
+		mimeType = "text/css"
+	case ".js":
+		mimeType = "text/javascript"
+	case ".png":
+		mimeType = "image/png"
+	case ".map":
+		mimeType = "application/json"
+	default:
+		mimeType = "text/html"
 	}
 
-	return endNanos
-}
-
-func (s *Stat) reset() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.firstNanos = 0
-	s.lastNanos = 0
-	s.minNanos = 0
-	s.maxNanos = 0
-	s.total = 0
-	s.count = 0
-	s.firstTime = time.Time{}
-	s.lastTime = time.Time{}
-
-	for _, item := range s.children {
-		item.reset()
-	}
-}
-
-func (s *Stat) getRoot() *Stat {
-	return rootItem
-}
-
-func (s *Stat) currentTimeNanos() int64 {
-	return time.Now().UnixNano()
-}
-
-// Average comment
-func (s *Stat) Average() int64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.count == 0 {
-		return 0
-	}
-
-	return s.total / s.count
+	w.Header().Set("Content-Type", mimeType)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(b)
 }
 
 func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
@@ -222,8 +263,8 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "<title>\r\n")
 	fmt.Fprintf(p, "GoCore Statistics\r\n")
 	fmt.Fprintf(p, "</title>\r\n")
-	fmt.Fprintf(p, "<script type='text/javascript' src='/js/jquery-1.3.2.js'></script>")
-	fmt.Fprintf(p, "<script type='text/javascript' src='/js/jquery.tablesorter.js'></script>")
+	fmt.Fprintf(p, "<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jquery/1.3.2/jquery.min.js'></script>")
+	fmt.Fprintf(p, "<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js'></script>")
 	fmt.Fprintf(p, "<script type='text/javascript' src='/js/chili-1.8b.js'></script>")
 	fmt.Fprintf(p, "<link rel='stylesheet' href='/css/statistics.css' type='text/css' media='print, projection, screen' />")
 	fmt.Fprintf(p, "<script type='text/javascript'>\r\n")
@@ -308,26 +349,26 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 
 	now := time.Now().UTC()
 
-	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), utils.HumanTime(time.Since(initTime)))
+	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), utils.HumanTimeUnit(time.Since(initTime)))
 
 	for key, item := range item.children {
 		item.mu.RLock()
 
 		fmt.Fprintf(p, "<tr>\r\n")
 		if len(item.children) > 0 {
-			keysParam += key
-			fmt.Fprintf(p, "<td><a href='/stats?key=%s'>%s</a></td>\r\n", keysParam, key)
+			// childKey := keysParam + key
+			fmt.Fprintf(p, "<td><a href='/stats?key=%s'>%s</a></td>\r\n", keysParam+key, key)
 		} else {
 			fmt.Fprintf(p, "<td>%s</td>\r\n", key)
 		}
 
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.total))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.totalDuration))
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.count)
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.firstNanos))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.lastNanos))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.minNanos))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.maxNanos))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.Average()))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.firstDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.lastDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.minDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.maxDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.average()))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.firstTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.lastTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "</tr>\r\n")
