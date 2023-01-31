@@ -319,13 +319,13 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "<thead>\r\n")
 	fmt.Fprintf(p, "<tr>\r\n")
 	fmt.Fprintf(p, "<th>Item</th>\r\n")
-	fmt.Fprintf(p, "<th>total</th>\r\n")
-	fmt.Fprintf(p, "<th>count</th>\r\n")
-	fmt.Fprintf(p, "<th>first</th>\r\n")
-	fmt.Fprintf(p, "<th>last</th>\r\n")
-	fmt.Fprintf(p, "<th>min</th>\r\n")
-	fmt.Fprintf(p, "<th>max</th>\r\n")
-	fmt.Fprintf(p, "<th>average</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>total</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>count</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>first</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>last</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>min</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>max</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>average</th>\r\n")
 	fmt.Fprintf(p, "<th>first run</th>\r\n")
 	fmt.Fprintf(p, "<th>last run</th>\r\n")
 	fmt.Fprintf(p, "</tr>\r\n")
@@ -334,6 +334,10 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "<tbody>\r\n")
 
 	item := root
+
+	if item.children == nil {
+		item.children = make(map[string]*Stat)
+	}
 
 	var keys []string
 	if keysParam != "" {
@@ -345,6 +349,9 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 
 	for _, key := range keys {
 		item = item.getChild(key)
+		if item == nil {
+			return
+		}
 	}
 
 	now := time.Now().UTC()
@@ -369,8 +376,8 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.minDuration))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.maxDuration))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.average()))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.firstTime.Format("2006-01-02 15:04:05.000"))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", item.lastTime.Format("2006-01-02 15:04:05.000"))
+		fmt.Fprintf(p, "<td>%s</td>\r\n", item.firstTime.Format("2006-01-02 15:04:05.000"))
+		fmt.Fprintf(p, "<td>%s</td>\r\n", item.lastTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "</tr>\r\n")
 
 		item.mu.RUnlock()
