@@ -1,5 +1,7 @@
 package gocore
 
+import "testing"
+
 // func TestNewStat(t *testing.T) {
 // 	now := time.Now().UTC()
 // 	_ = now
@@ -37,3 +39,11 @@ package gocore
 // 		print(t, v)
 // 	}
 // }
+
+func TestThousands(t *testing.T) {
+	var num int64 = 123
+
+	s := addThousandsOperator(num)
+
+	t.Log(s)
+}

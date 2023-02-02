@@ -7,4 +7,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 )
 
-require github.com/mattn/go-colorable v0.1.2 // indirect
+require (
+	github.com/mattn/go-colorable v0.1.2 // indirect
+	golang.org/x/text v0.6.0
+)

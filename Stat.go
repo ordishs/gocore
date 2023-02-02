@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/ordishs/gocore/utils"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 const REPORTED_TIME_THRESHOLD_MINUTES = 5
@@ -380,7 +382,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 			fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.totalDuration))
 		}
 
-		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.count)
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", addThousandsOperator(item.count))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.firstDuration))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.lastDuration))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.minDuration))
@@ -404,4 +406,9 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "</div>\r\n")
 	fmt.Fprintf(p, "</body></html>\r\n")
 
+}
+
+func addThousandsOperator(num int64) string {
+	p := message.NewPrinter(language.English)
+	return p.Sprintf("%d\n", num)
 }
