@@ -37,6 +37,7 @@ type Stat struct {
 	parent             *Stat
 	children           map[string]*Stat
 	ignoreChildUpdates bool
+	hideTotal          bool
 	firstDuration      time.Duration
 	lastDuration       time.Duration
 	minDuration        time.Duration
@@ -71,6 +72,10 @@ func (s *Stat) NewStat(key string, options ...bool) *Stat {
 	}
 
 	return stat
+}
+
+func (s *Stat) HideTotal(b bool) {
+	s.hideTotal = b
 }
 
 func (s *Stat) getChild(key string) *Stat {
@@ -369,7 +374,12 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 			fmt.Fprintf(p, "<td>%s</td>\r\n", key)
 		}
 
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.totalDuration))
+		if item.hideTotal {
+			fmt.Fprintf(p, "<td></td>\r\n")
+		} else {
+			fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.totalDuration))
+		}
+
 		fmt.Fprintf(p, "<td align='right'>%d</td>\r\n", item.count)
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.firstDuration))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.lastDuration))
