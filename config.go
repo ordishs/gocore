@@ -36,13 +36,15 @@ var (
 	address     atomic.Value
 	version     atomic.Value
 	commit      atomic.Value
-	logger      *Logger
 )
+
+func init() {
+	packageName.Store("gocore")
+}
 
 // SetInfo comment
 func SetInfo(name string, ver string, com string) {
 	packageName.Store(name)
-	logger = Log(name)
 	version.Store(ver)
 	commit.Store(com)
 }
@@ -168,16 +170,17 @@ func Config() *Configuration {
 				ticker := time.NewTicker(interval)
 
 				type payload struct {
-					Executable        string `json:"executable"`
-					ServiceName       string `json:"serviceName"`
-					Version           string `json:"version"`
-					Commit            string `json:"commit"`
-					Context           string `json:"context"`
-					SettingsFile      string `json:"settingsFile"`
-					LocalSettingsFile string `json:"localSettingsFile"`
-					Host              string `json:"host"`
-					Address           string `json:"address"`
-					StartTime         string `json:"startTime"`
+					Executable        string   `json:"executable"`
+					ServiceName       string   `json:"serviceName"`
+					Loggers           []string `json:"loggers"`
+					Version           string   `json:"version"`
+					Commit            string   `json:"commit"`
+					Context           string   `json:"context"`
+					SettingsFile      string   `json:"settingsFile"`
+					LocalSettingsFile string   `json:"localSettingsFile"`
+					Host              string   `json:"host"`
+					Address           string   `json:"address"`
+					StartTime         string   `json:"startTime"`
 				}
 
 				for ; true; <-ticker.C {
@@ -201,9 +204,17 @@ func Config() *Configuration {
 						c = "..."
 					}
 
+					mu.RLock()
+					l := make([]string, 0)
+					for name := range loggers {
+						l = append(l, name)
+					}
+					mu.RUnlock()
+
 					j, err := json.Marshal(&payload{
 						Executable:        executable,
 						ServiceName:       p,
+						Loggers:           l,
 						Version:           ver,
 						Commit:            c,
 						Context:           env,
@@ -235,19 +246,11 @@ func Config() *Configuration {
 }
 
 func logInfof(msg string, args ...interface{}) {
-	if logger != nil {
-		logger.Infof(msg, args...)
-	} else {
-		log.Printf(msg, args...)
-	}
+	log.Printf(msg, args...)
 }
 
 func logWarnf(msg string, args ...interface{}) {
-	if logger != nil {
-		logger.Warnf(msg, args...)
-	} else {
-		log.Printf(msg, args...)
-	}
+	log.Printf(msg, args...)
 }
 
 func postJSON(url string, j []byte) (string, error) {
@@ -278,11 +281,6 @@ func postJSON(url string, j []byte) (string, error) {
 	}
 
 	return string(body), err
-}
-
-// SetPackageName function
-func SetPackageName(name string) {
-	packageName.Store(name)
 }
 
 // Set an item in the config

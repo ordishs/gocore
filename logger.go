@@ -136,8 +136,6 @@ func Log(packageName string, logLevelOption ...logLevel) *Logger {
 		log.SetFlags(0)
 	}
 
-	SetPackageName(packageName)
-
 	// Run a listener on a Unix socket
 	go func() {
 		n := fmt.Sprintf("%s/%s.sock", socketDIR, strings.ToUpper(packageName))

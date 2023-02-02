@@ -10,6 +10,8 @@ var logger = gocore.Log("TestPackage")
 
 func main() {
 
+	gocore.SetInfo("TEST", "v0.1", "ABCD")
+
 	go func() {
 		ticker := time.NewTicker(3 * time.Second)
 		for range ticker.C {
