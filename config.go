@@ -30,16 +30,29 @@ type Configuration struct {
 }
 
 var (
-	c           *Configuration
-	once        sync.Once
-	packageName atomic.Value
-	address     atomic.Value
-	version     atomic.Value
-	commit      atomic.Value
+	c                   *Configuration
+	once                sync.Once
+	packageName         atomic.Value
+	address             atomic.Value
+	version             atomic.Value
+	commit              atomic.Value
+	appMu               sync.RWMutex
+	appPayloadFunctions map[string]func() interface{}
 )
 
 func init() {
 	packageName.Store("gocore")
+}
+
+func AddAppPayloadFn(key string, fn func() interface{}) {
+	appMu.Lock()
+	defer appMu.Unlock()
+
+	if appPayloadFunctions == nil {
+		appPayloadFunctions = make(map[string]func() interface{})
+	}
+
+	appPayloadFunctions[key] = fn
 }
 
 // SetInfo comment
@@ -170,17 +183,18 @@ func Config() *Configuration {
 				ticker := time.NewTicker(interval)
 
 				type payload struct {
-					Executable        string   `json:"executable"`
-					ServiceName       string   `json:"serviceName"`
-					Loggers           []string `json:"loggers"`
-					Version           string   `json:"version"`
-					Commit            string   `json:"commit"`
-					Context           string   `json:"context"`
-					SettingsFile      string   `json:"settingsFile"`
-					LocalSettingsFile string   `json:"localSettingsFile"`
-					Host              string   `json:"host"`
-					Address           string   `json:"address"`
-					StartTime         string   `json:"startTime"`
+					Executable        string                 `json:"executable"`
+					ServiceName       string                 `json:"serviceName"`
+					Loggers           []string               `json:"loggers"`
+					Version           string                 `json:"version"`
+					Commit            string                 `json:"commit"`
+					Context           string                 `json:"context"`
+					SettingsFile      string                 `json:"settingsFile"`
+					LocalSettingsFile string                 `json:"localSettingsFile"`
+					Host              string                 `json:"host"`
+					Address           string                 `json:"address"`
+					StartTime         string                 `json:"startTime"`
+					AppPayload        map[string]interface{} `json:"appPayload"`
 				}
 
 				for ; true; <-ticker.C {
@@ -211,6 +225,13 @@ func Config() *Configuration {
 					}
 					mu.RUnlock()
 
+					appPayloads := make(map[string]interface{})
+					appMu.RLock()
+					for key, fn := range appPayloadFunctions {
+						appPayloads[key] = fn()
+					}
+					appMu.RUnlock()
+
 					j, err := json.Marshal(&payload{
 						Executable:        executable,
 						ServiceName:       p,
@@ -223,6 +244,7 @@ func Config() *Configuration {
 						Host:              host,
 						Address:           address,
 						StartTime:         startTime,
+						AppPayload:        appPayloads,
 					})
 
 					if err != nil {
