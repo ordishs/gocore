@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func HumanTimeUnit(d time.Duration) string {
+func HumanTimeUnitWithColour(d time.Duration) (string, string) {
 	remainingNanos := float64(d)
 
 	days := int64(remainingNanos / 1e9 / 86400)
@@ -45,5 +45,15 @@ func HumanTimeUnit(d time.Duration) string {
 		str = fmt.Sprintf("%dns", int64(remainingNanos))
 	}
 
+	return str, colour
+}
+
+func HumanTimeUnit(d time.Duration) string {
+	str, _ := HumanTimeUnitWithColour(d)
+	return str
+}
+
+func HumanTimeUnitHTML(d time.Duration) string {
+	str, colour := HumanTimeUnitWithColour(d)
 	return fmt.Sprintf("<span style='color: %s'>%s</span>", colour, str)
 }

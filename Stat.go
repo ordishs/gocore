@@ -363,7 +363,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 
 	now := time.Now().UTC()
 
-	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), utils.HumanTimeUnit(time.Since(initTime)))
+	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), utils.HumanTimeUnitHTML(time.Since(initTime)))
 
 	for key, item := range item.children {
 		item.mu.RLock()
@@ -379,15 +379,15 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 		if item.hideTotal {
 			fmt.Fprintf(p, "<td></td>\r\n")
 		} else {
-			fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.totalDuration))
+			fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.totalDuration))
 		}
 
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", addThousandsOperator(item.count))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.firstDuration))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.lastDuration))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.minDuration))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.maxDuration))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnit(item.average()))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.firstDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.lastDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.minDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.maxDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.average()))
 		fmt.Fprintf(p, "<td>%s</td>\r\n", item.firstTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "<td>%s</td>\r\n", item.lastTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "</tr>\r\n")
