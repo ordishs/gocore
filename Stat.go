@@ -16,9 +16,6 @@ import (
 	"golang.org/x/text/message"
 )
 
-const REPORTED_TIME_THRESHOLD_MINUTES = 5
-const REPORTED_TIME_THRESHOLD = REPORTED_TIME_THRESHOLD_MINUTES * time.Minute
-
 var (
 	//go:embed all:embed/*
 
@@ -30,7 +27,20 @@ var (
 		children:           make(map[string]*Stat),
 		ignoreChildUpdates: true,
 	}
+
+	reportedTimeThresholdStr string
+	reportedTimeThreshold    time.Duration
 )
+
+func init() {
+	reportedTimeThresholdStr, _ = Config().Get("gocore_stats_reported_time_threshold", "5m")
+
+	var err error
+	reportedTimeThreshold, err = time.ParseDuration(reportedTimeThresholdStr)
+	if err != nil {
+		reportedTimeThreshold = 5 * time.Minute
+	}
+}
 
 // Stat comment
 type Stat struct {
@@ -88,8 +98,8 @@ func (s *Stat) getChild(key string) *Stat {
 }
 
 func (s *Stat) processTime(now time.Time, duration time.Duration) {
-	if duration > REPORTED_TIME_THRESHOLD {
-		log.Printf("Stat: time for %s is greater than %d minutes", s.key, REPORTED_TIME_THRESHOLD_MINUTES)
+	if duration > reportedTimeThreshold {
+		log.Printf("Stat: time for %s is greater than %s", s.key, reportedTimeThresholdStr)
 		return
 	}
 
