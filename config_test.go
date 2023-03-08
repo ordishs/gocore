@@ -203,3 +203,8 @@ func TestURL4(t *testing.T) {
 
 	t.Logf("%v, %v", res, found)
 }
+
+func TestGetContext(t *testing.T) {
+	context := Config().GetContext()
+	assert.Equalf(t, "dev", context, "context is wrong")
+}
