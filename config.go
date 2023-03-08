@@ -487,3 +487,8 @@ func (c *Configuration) Stats() string {
 
 	return out
 }
+
+// Get context
+func (c *Configuration) GetContext() string {
+	return c.context
+}
