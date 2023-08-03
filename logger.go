@@ -157,7 +157,7 @@ func Log(packageName string, logLevelOption ...logLevel) *Logger {
 		}
 		for {
 			fd, err := ln.Accept()
-			if err != nil {
+			if err != nil && Config().GetBool("logger_show_socket_info", false) {
 				logger.Warnf("Accept error: %+v", err)
 				return
 			}
