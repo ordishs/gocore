@@ -2,12 +2,16 @@
   "cSpell.words": [
     "appender",
     "binded",
+    "cellpadding",
+    "cellspacing",
     "cmds",
     "colour",
     "confs",
     "Debugf",
     "ehes",
+    "Equalf",
     "Infof",
+    "loglevel",
     "mgutz",
     "Multisort",
     "Nanos",
@@ -15,7 +19,11 @@
     "sortend",
     "sortlist",
     "sorton",
+    "stretchr",
+    "stylesheet",
     "tablesorter",
+    "tbody",
+    "thead",
     "Warnf"
   ]
 }

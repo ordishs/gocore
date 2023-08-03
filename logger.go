@@ -18,11 +18,6 @@ import (
 	"github.com/ordishs/gocore/utils"
 )
 
-type debugSettings struct {
-	enabled bool
-	regex   string
-}
-
 // TraceSettings Comment
 type traceSettings struct {
 	// String will be a Regex expression for the relevant Conn
@@ -87,9 +82,10 @@ type Logger struct {
 }
 
 var (
-	mu        sync.RWMutex
-	loggers   map[string]*Logger
-	socketDIR string
+	mu           sync.RWMutex
+	loggers      map[string]*Logger
+	socketDIR    string
+	outputFormat string
 )
 
 func init() {
@@ -103,6 +99,8 @@ func init() {
 	if err != nil {
 		log.Printf("ERROR: Unable to make socket directory %s: %+v", socketDIR, err)
 	}
+
+	outputFormat, _ = Config().Get("logger_output_format", "| %-20s| %-5s| %s |")
 }
 
 func Log(packageName string, logLevelOption ...logLevel) *Logger {
@@ -154,8 +152,9 @@ func Log(packageName string, logLevelOption ...logLevel) *Logger {
 		// Add the socket so we can close it down when Fatal or Panic are called
 		logger.conf.socket = ln
 
-		logger.Infof("Socket created. Connect with 'nc -U %s'", n)
-
+		if Config().GetBool("logger_show_socket_info", false) {
+			logger.Infof("Socket created. Connect with 'nc -U %s'", n)
+		}
 		for {
 			fd, err := ln.Accept()
 			if err != nil {
@@ -300,9 +299,9 @@ func (l *Logger) output(ll logLevel, colour, msg string, args ...interface{}) {
 
 	fileLine := fmt.Sprintf("%s:%d", file, line)
 
-	format := fmt.Sprintf("| %-20s| %-5s| %s |", fileLine, l.packageName, level)
+	format := fmt.Sprintf(outputFormat, fileLine, l.packageName, level)
 	if msg != "" {
-		format = fmt.Sprintf("| %-20s| %-5s| %s | %s", fileLine, l.packageName, level, msg)
+		format = fmt.Sprintf(outputFormat+" %s", fileLine, l.packageName, level, msg)
 	}
 
 	if print {
@@ -323,7 +322,7 @@ func (l *Logger) output(ll logLevel, colour, msg string, args ...interface{}) {
 
 	s += fmt.Sprintf(format, args...)
 
-	if strings.HasSuffix(s, "\n") == false {
+	if !strings.HasSuffix(s, "\n") {
 		s += "\n"
 	}
 
@@ -334,12 +333,6 @@ func (l *Logger) output(ll logLevel, colour, msg string, args ...interface{}) {
 
 func (l *Logger) getStack() string {
 	return strings.Join(strings.Split(string(debug.Stack()), "\n")[7:], "\n")
-}
-
-func (l *Logger) isDebugEnabled() bool {
-	l.conf.mu.RLock()
-	defer l.conf.mu.RUnlock()
-	return l.conf.logLevel == DEBUG
 }
 
 func (l *Logger) GetLogLevel() logLevel {
@@ -411,7 +404,7 @@ func (l *Logger) handleIncomingMessage(c net.Conn) {
 			cmd := scanner.Text()
 			s, err := utils.SplitArgs(cmd)
 			if err != nil {
-				l.write(c, fmt.Sprintf("  Cannot split command: %v\n\n", err))
+				_ = l.write(c, fmt.Sprintf("  Cannot split command: %v\n\n", err))
 			}
 
 			switch s[0] {
@@ -433,46 +426,23 @@ func (l *Logger) handleIncomingMessage(c net.Conn) {
 			case "":
 
 			default:
-				l.write(c, fmt.Sprintf("  Command not found: %s\n\n", cmd))
+				_ = l.write(c, fmt.Sprintf("  Command not found: %s\n\n", cmd))
 			}
 		}
 	}()
 }
 
-func (l *Logger) handleTrace(r []string, c net.Conn) {
-	l.conf.mu.Lock()
-	defer l.conf.mu.Unlock()
-
-	if len(r) <= 1 {
-		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
-		return
-	}
-
-	if r[1] == "off" {
-		delete(l.conf.trace.sockets, c)
-	}
-
-	reg := ""
-	if len(r) == 3 {
-		reg = r[2]
-	}
-
-	if r[1] == "on" {
-		l.conf.trace.sockets[c] = reg
-	}
-}
-
 func (l *Logger) handleSample(r []string, c net.Conn) {
 
 	if len(r) <= 1 {
-		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 		return
 	}
 
 	switch r[1] {
 	case "list":
 		if len(r) != 2 {
-			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 
@@ -496,7 +466,7 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 
 	case "start":
 		if len(r) < 4 || len(r) > 5 {
-			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 
@@ -511,7 +481,7 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 
 		sampler, err := sampler.New(id, filename, regex)
 		if err != nil {
-			l.write(c, fmt.Sprintf("  Could not create sampler [%v].\n\n", err))
+			_ = l.write(c, fmt.Sprintf("  Could not create sampler [%v].\n\n", err))
 			return
 		}
 
@@ -523,7 +493,7 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 
 	case "stop":
 		if len(r) != 3 {
-			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 
@@ -541,47 +511,46 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 
 		l.sendStatus(c)
 	default:
-		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 		return
 	}
-	return
 }
 
 func (l *Logger) handleConfig(r []string, c net.Conn) {
 	if len(r) <= 1 {
-		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 		return
 	}
 
 	switch r[1] {
 	case "show":
 		stats := Config().Stats()
-		l.write(c, stats+"\n\n")
+		_ = l.write(c, stats+"\n\n")
 
 	case "get":
 		value, ok := Config().Get(r[2])
 		if !ok {
-			l.write(c, "  Not set\n\n")
+			_ = l.write(c, "  Not set\n\n")
 		} else {
-			l.write(c, fmt.Sprintf("  %s=%s\n\n", r[2], value))
+			_ = l.write(c, fmt.Sprintf("  %s=%s\n\n", r[2], value))
 		}
 
 	case "set":
 		oldValue := Config().Set(r[2], r[3])
 
 		if oldValue == r[3] {
-			l.write(c, "  No change\n\n")
+			_ = l.write(c, "  No change\n\n")
 		} else if oldValue == "" {
-			l.write(c, fmt.Sprintf("  Created new setting: %s=%s\n\n", r[2], r[3]))
+			_ = l.write(c, fmt.Sprintf("  Created new setting: %s=%s\n\n", r[2], r[3]))
 		} else {
-			l.write(c, fmt.Sprintf("  Updated setting: %s %s -> %s\n\n", r[2], oldValue, r[3]))
+			_ = l.write(c, fmt.Sprintf("  Updated setting: %s %s -> %s\n\n", r[2], oldValue, r[3]))
 		}
 	case "unset":
 		oldValue := Config().Unset(r[2])
 		if oldValue == "" {
-			l.write(c, "  No change\n\n")
+			_ = l.write(c, "  No change\n\n")
 		} else {
-			l.write(c, fmt.Sprintf("  Removed setting: %s=%s\n\n", r[2], oldValue))
+			_ = l.write(c, fmt.Sprintf("  Removed setting: %s=%s\n\n", r[2], oldValue))
 		}
 	}
 }
@@ -593,14 +562,14 @@ func (l *Logger) handleLogLevel(r []string, c net.Conn) {
 
 func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 	if len(r) <= 1 {
-		l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 		return
 	}
 
 	switch r[1] {
 	case "off":
 		if len(r) != 2 {
-			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 		switch context {
@@ -610,12 +579,12 @@ func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 			l.conf.mu.Unlock()
 			l.sendStatus(c)
 		default:
-			l.write(c, "Invalid context'\n")
+			_ = l.write(c, "Invalid context'\n")
 		}
 
 	case "on":
 		if len(r) > 3 {
-			l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 
@@ -631,11 +600,11 @@ func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 			l.conf.mu.Unlock()
 			l.sendStatus(c)
 		default:
-			l.write(c, "Invalid context'\n")
+			_ = l.write(c, "Invalid context'\n")
 		}
 
 	default:
-		l.write(c, "  Second parameter must be 'on' or 'off'\n\n")
+		_ = l.write(c, "  Second parameter must be 'on' or 'off'\n\n")
 	}
 }
 
@@ -659,7 +628,7 @@ func (l *Logger) sendStatus(c net.Conn) {
 
 	res += "\n"
 
-	l.write(c, res)
+	_ = l.write(c, res)
 }
 
 func (l *Logger) help(c net.Conn) {
@@ -705,11 +674,11 @@ func (l *Logger) help(c net.Conn) {
 	}
 	res += "\n"
 
-	l.write(c, res)
+	_ = l.write(c, res)
 }
 
 func (l *Logger) welcome(c net.Conn) {
 
 	res := "Runtime logger controller.\n-------------------------\nType help for a list of available commands.\n\n"
-	l.write(c, res)
+	_ = l.write(c, res)
 }

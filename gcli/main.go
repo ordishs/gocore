@@ -61,7 +61,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tcpconn, ok := conn.(*net.UnixConn)
+	tcpConn, ok := conn.(*net.UnixConn)
 	if !ok {
 		fmt.Printf("Failed to cast %v to net.UnixConn\n", conn)
 		os.Exit(1)
@@ -71,20 +71,20 @@ func main() {
 	wg.Add(2)
 
 	go func(command string) {
-		tcpconn.Write([]byte(command + "\n"))
+		_, _ = tcpConn.Write([]byte(command + "\n"))
 		if *keepAlive {
-			io.Copy(tcpconn, os.Stdin)
-			tcpconn.CloseWrite()
+			_, _ = io.Copy(tcpConn, os.Stdin)
+			_ = tcpConn.CloseWrite()
 		} else {
-			tcpconn.Write([]byte("quit\n"))
-			tcpconn.CloseWrite()
+			_, _ = tcpConn.Write([]byte("quit\n"))
+			_ = tcpConn.CloseWrite()
 		}
 		wg.Done()
 	}(strings.Join(args, " "))
 
 	go func() {
-		io.Copy(os.Stdout, tcpconn)
-		tcpconn.CloseRead()
+		_, _ = io.Copy(os.Stdout, tcpConn)
+		_ = tcpConn.CloseRead()
 		wg.Done()
 	}()
 
