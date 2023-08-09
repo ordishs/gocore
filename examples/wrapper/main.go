@@ -9,23 +9,9 @@ import (
 	"github.com/ordishs/gocore"
 )
 
-var (
-	something, _ = gocore.Config().Get("something")
-)
-
-var (
-	value            string
-	valueWithDefault string
-	numberValue      int
-)
-
 func init() {
 	stats := gocore.Config().Stats()
 	log.Printf("STATS\n%s\nVERSION\n-------\n%s (%s)\n\n", stats, version, commit)
-
-	value, _ = gocore.Config().Get("key")
-	valueWithDefault, _ = gocore.Config().Get("anotherKey", "default")
-	numberValue, _ = gocore.Config().GetInt("number")
 }
 
 func main() {

@@ -72,7 +72,7 @@ func processFile(m map[string]string, filename string) (string, error) {
 	if err != nil {
 		return filename, err
 	}
-	bytes, err := os.ReadFile(f)
+	bytesRead, err := os.ReadFile(f)
 
 	for err != nil && f != "/"+filename {
 
@@ -83,14 +83,14 @@ func processFile(m map[string]string, filename string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		bytes, err = os.ReadFile(f)
+		bytesRead, err = os.ReadFile(f)
 	}
 
 	if err != nil {
 		return f, err
 	}
 
-	str := string(bytes)
+	str := string(bytesRead)
 	lines := strings.Split(str, "\n")
 
 	for lineNum, line := range lines {
@@ -203,9 +203,9 @@ func Config() *Configuration {
 						p = "Unknown"
 					}
 
-					address, ok := address.Load().(string)
+					addressStr, ok := address.Load().(string)
 					if !ok {
-						address = "Unknown"
+						addressStr = "Unknown"
 					}
 
 					ver, ok := version.Load().(string)
@@ -242,7 +242,7 @@ func Config() *Configuration {
 						SettingsFile:      filename,
 						LocalSettingsFile: localFilename,
 						Host:              host,
-						Address:           address,
+						Address:           addressStr,
 						StartTime:         startTime,
 						AppPayload:        appPayloads,
 					})
@@ -275,13 +275,13 @@ func logWarnf(msg string, args ...interface{}) {
 	log.Printf(msg, args...)
 }
 
-func postJSON(url string, j []byte) (string, error) {
-	if len(j) == 0 || url == "" {
-		logWarnf("Advertising post ERROR empty advertise URL |%v| or JSON\n", url)
+func postJSON(urlStr string, j []byte) (string, error) {
+	if len(j) == 0 || urlStr == "" {
+		logWarnf("Advertising post ERROR empty advertise URL |%v| or JSON\n", urlStr)
 		return "", fmt.Errorf("Error posting JSON")
 	}
 	jsonBuf := bytes.NewBuffer(j)
-	req, err := http.NewRequest("POST", url, jsonBuf)
+	req, err := http.NewRequest("POST", urlStr, jsonBuf)
 	if err != nil {
 		return "", err
 	}

@@ -103,22 +103,26 @@ func init() {
 	outputFormat, _ = Config().Get("logger_output_format", "| %-20s| %-5s| %s |")
 }
 
-func Log(packageName string, logLevelOption ...logLevel) *Logger {
+func Log(packageNameStr string, logLevelOption ...logLevel) *Logger {
 	mu.Lock()
 	defer mu.Unlock()
 
-	logger, found := loggers[packageName]
+	logger, found := loggers[packageNameStr]
 	if found {
 		return logger
 	}
 
-	ll := INFO
+	var ll logLevel
+
 	if len(logLevelOption) > 0 {
 		ll = logLevelOption[0]
+	} else {
+		logLevelSetting, _ := Config().Get("logLevel", "INFO")
+		ll = NewLogLevelFromString(logLevelSetting)
 	}
 
 	logger = &Logger{
-		packageName: packageName,
+		packageName: packageNameStr,
 		colour:      true,
 		conf: loggerConfig{
 			mu:       new(sync.RWMutex),
@@ -136,7 +140,7 @@ func Log(packageName string, logLevelOption ...logLevel) *Logger {
 
 	// Run a listener on a Unix socket
 	go func() {
-		n := fmt.Sprintf("%s/%s.sock", socketDIR, strings.ToUpper(packageName))
+		n := fmt.Sprintf("%s/%s.sock", socketDIR, strings.ToUpper(packageNameStr))
 
 		// Remove the file if it exists...
 		os.Remove(n)
@@ -167,13 +171,13 @@ func Log(packageName string, logLevelOption ...logLevel) *Logger {
 
 	}()
 
-	loggers[packageName] = logger
+	loggers[packageNameStr] = logger
 
 	return logger
 }
 
-func (l *Logger) write(c io.Writer, s string) error {
-	_, err := c.Write([]byte(s))
+func (l *Logger) write(w io.Writer, s string) error {
+	_, err := w.Write([]byte(s))
 	if err != nil {
 		l.Errorf("Writing client error: %+v", err)
 	}
@@ -396,58 +400,58 @@ func (l *Logger) sendToSample(s string, level string) {
 	}
 }
 
-func (l *Logger) handleIncomingMessage(c net.Conn) {
-	l.welcome(c)
+func (l *Logger) handleIncomingMessage(conn net.Conn) {
+	l.welcome(conn)
 	go func() {
-		scanner := bufio.NewScanner(c)
+		scanner := bufio.NewScanner(conn)
 		for scanner.Scan() {
 			cmd := scanner.Text()
 			s, err := utils.SplitArgs(cmd)
 			if err != nil {
-				_ = l.write(c, fmt.Sprintf("  Cannot split command: %v\n\n", err))
+				_ = l.write(conn, fmt.Sprintf("  Cannot split command: %v\n\n", err))
 			}
 
 			switch s[0] {
 			case "config":
-				l.handleConfig(s, c)
+				l.handleConfig(s, conn)
 			case "trace":
-				l.handleDebugAndTrace("TRACE", s, c)
+				l.handleDebugAndTrace("TRACE", s, conn)
 			case "loglevel":
-				l.handleLogLevel(s, c)
+				l.handleLogLevel(s, conn)
 			case "sample":
-				l.handleSample(s, c)
+				l.handleSample(s, conn)
 			case "status":
-				l.sendStatus(c)
+				l.sendStatus(conn)
 			case "quit":
-				c.Close()
+				conn.Close()
 				return
 			case "help":
-				l.help(c)
+				l.help(conn)
 			case "":
 
 			default:
-				_ = l.write(c, fmt.Sprintf("  Command not found: %s\n\n", cmd))
+				_ = l.write(conn, fmt.Sprintf("  Command not found: %s\n\n", cmd))
 			}
 		}
 	}()
 }
 
-func (l *Logger) handleSample(r []string, c net.Conn) {
+func (l *Logger) handleSample(r []string, conn net.Conn) {
 
 	if len(r) <= 1 {
-		_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 		return
 	}
 
 	switch r[1] {
 	case "list":
 		if len(r) != 2 {
-			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 
 		if len(l.conf.samplers) == 0 {
-			err := l.write(c, "  No running samples.\n\n")
+			err := l.write(conn, "  No running samples.\n\n")
 			if err != nil {
 				return
 			}
@@ -458,7 +462,7 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 			}
 			s += "\n"
 
-			err := l.write(c, s)
+			err := l.write(conn, s)
 			if err != nil {
 				break
 			}
@@ -466,7 +470,7 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 
 	case "start":
 		if len(r) < 4 || len(r) > 5 {
-			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 
@@ -479,21 +483,21 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 			regex = r[4]
 		}
 
-		sampler, err := sampler.New(id, filename, regex)
+		s, err := sampler.New(id, filename, regex)
 		if err != nil {
-			_ = l.write(c, fmt.Sprintf("  Could not create sampler [%v].\n\n", err))
+			_ = l.write(conn, fmt.Sprintf("  Could not create sampler [%v].\n\n", err))
 			return
 		}
 
 		l.conf.mu.Lock()
-		l.conf.samplers = append(l.conf.samplers, sampler)
+		l.conf.samplers = append(l.conf.samplers, s)
 		l.conf.mu.Unlock()
 
-		l.sendStatus(c)
+		l.sendStatus(conn)
 
 	case "stop":
 		if len(r) != 3 {
-			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 
@@ -509,82 +513,82 @@ func (l *Logger) handleSample(r []string, c net.Conn) {
 		}
 		l.conf.mu.Unlock()
 
-		l.sendStatus(c)
+		l.sendStatus(conn)
 	default:
-		_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 		return
 	}
 }
 
-func (l *Logger) handleConfig(r []string, c net.Conn) {
+func (l *Logger) handleConfig(r []string, conn net.Conn) {
 	if len(r) <= 1 {
-		_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 		return
 	}
 
 	switch r[1] {
 	case "show":
 		stats := Config().Stats()
-		_ = l.write(c, stats+"\n\n")
+		_ = l.write(conn, stats+"\n\n")
 
 	case "get":
 		value, ok := Config().Get(r[2])
 		if !ok {
-			_ = l.write(c, "  Not set\n\n")
+			_ = l.write(conn, "  Not set\n\n")
 		} else {
-			_ = l.write(c, fmt.Sprintf("  %s=%s\n\n", r[2], value))
+			_ = l.write(conn, fmt.Sprintf("  %s=%s\n\n", r[2], value))
 		}
 
 	case "set":
 		oldValue := Config().Set(r[2], r[3])
 
 		if oldValue == r[3] {
-			_ = l.write(c, "  No change\n\n")
+			_ = l.write(conn, "  No change\n\n")
 		} else if oldValue == "" {
-			_ = l.write(c, fmt.Sprintf("  Created new setting: %s=%s\n\n", r[2], r[3]))
+			_ = l.write(conn, fmt.Sprintf("  Created new setting: %s=%s\n\n", r[2], r[3]))
 		} else {
-			_ = l.write(c, fmt.Sprintf("  Updated setting: %s %s -> %s\n\n", r[2], oldValue, r[3]))
+			_ = l.write(conn, fmt.Sprintf("  Updated setting: %s %s -> %s\n\n", r[2], oldValue, r[3]))
 		}
 	case "unset":
 		oldValue := Config().Unset(r[2])
 		if oldValue == "" {
-			_ = l.write(c, "  No change\n\n")
+			_ = l.write(conn, "  No change\n\n")
 		} else {
-			_ = l.write(c, fmt.Sprintf("  Removed setting: %s=%s\n\n", r[2], oldValue))
+			_ = l.write(conn, fmt.Sprintf("  Removed setting: %s=%s\n\n", r[2], oldValue))
 		}
 	}
 }
 
-func (l *Logger) handleLogLevel(r []string, c net.Conn) {
+func (l *Logger) handleLogLevel(r []string, conn net.Conn) {
 	ll := NewLogLevelFromString(r[1])
 	l.setLogLevel(ll)
 }
 
-func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
+func (l *Logger) handleDebugAndTrace(context string, r []string, conn net.Conn) {
 	if len(r) <= 1 {
-		_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+		_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 		return
 	}
 
 	switch r[1] {
 	case "off":
 		if len(r) != 2 {
-			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 		switch context {
 		case "TRACE":
 			l.conf.mu.Lock()
-			delete(l.conf.trace.sockets, c)
+			delete(l.conf.trace.sockets, conn)
 			l.conf.mu.Unlock()
-			l.sendStatus(c)
+			l.sendStatus(conn)
 		default:
-			_ = l.write(c, "Invalid context'\n")
+			_ = l.write(conn, "Invalid context'\n")
 		}
 
 	case "on":
 		if len(r) > 3 {
-			_ = l.write(c, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
+			_ = l.write(conn, "  Invalid number of parameters. Use 'help' to see the syntax.\n\n")
 			return
 		}
 
@@ -596,25 +600,25 @@ func (l *Logger) handleDebugAndTrace(context string, r []string, c net.Conn) {
 		switch context {
 		case "TRACE":
 			l.conf.mu.Lock()
-			l.conf.trace.sockets[c] = reg
+			l.conf.trace.sockets[conn] = reg
 			l.conf.mu.Unlock()
-			l.sendStatus(c)
+			l.sendStatus(conn)
 		default:
-			_ = l.write(c, "Invalid context'\n")
+			_ = l.write(conn, "Invalid context'\n")
 		}
 
 	default:
-		_ = l.write(c, "  Second parameter must be 'on' or 'off'\n\n")
+		_ = l.write(conn, "  Second parameter must be 'on' or 'off'\n\n")
 	}
 }
 
-func (l *Logger) sendStatus(c net.Conn) {
+func (l *Logger) sendStatus(conn net.Conn) {
 	l.conf.mu.RLock()
 	defer l.conf.mu.RUnlock()
 
 	res := fmt.Sprintf("  LOG LEVEL is %s\n", l.conf.logLevel)
 
-	if regex, ok := l.conf.trace.sockets[c]; ok {
+	if regex, ok := l.conf.trace.sockets[conn]; ok {
 		if regex != "" {
 			res += fmt.Sprintf("  TRACE is ON filtered by a regex of %q\n", regex)
 		} else {
@@ -628,10 +632,10 @@ func (l *Logger) sendStatus(c net.Conn) {
 
 	res += "\n"
 
-	_ = l.write(c, res)
+	_ = l.write(conn, res)
 }
 
-func (l *Logger) help(c net.Conn) {
+func (l *Logger) help(conn net.Conn) {
 	type command struct {
 		cmd         string
 		description string
@@ -674,11 +678,11 @@ func (l *Logger) help(c net.Conn) {
 	}
 	res += "\n"
 
-	_ = l.write(c, res)
+	_ = l.write(conn, res)
 }
 
-func (l *Logger) welcome(c net.Conn) {
+func (l *Logger) welcome(conn net.Conn) {
 
 	res := "Runtime logger controller.\n-------------------------\nType help for a list of available commands.\n\n"
-	_ = l.write(c, res)
+	_ = l.write(conn, res)
 }

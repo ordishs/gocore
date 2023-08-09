@@ -19,7 +19,7 @@ import (
 var (
 	//go:embed all:embed/*
 
-	res embed.FS
+	embeddedFS embed.FS
 
 	initTime = time.Now().UTC()
 	RootStat = &Stat{
@@ -237,14 +237,14 @@ func handleOther(w http.ResponseWriter, r *http.Request) {
 		resource = fmt.Sprintf("embed%s", path)
 	}
 
-	b, err := res.ReadFile(resource)
+	b, err := embeddedFS.ReadFile(resource)
 	if err != nil {
 		// Just in case we're missing the /index.html, add it and try again...
 		resource += "/index.html"
-		b, err = res.ReadFile(resource)
+		b, err = embeddedFS.ReadFile(resource)
 		if err != nil {
 			resource = "embed/index.html"
-			b, err = res.ReadFile(resource)
+			b, err = embeddedFS.ReadFile(resource)
 			if err != nil {
 				w.Header().Set("Content-Type", "text/plain")
 				w.WriteHeader(http.StatusNotFound)

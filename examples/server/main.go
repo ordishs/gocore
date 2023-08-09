@@ -8,8 +8,6 @@ import (
 	"github.com/ordishs/gocore"
 )
 
-var logger = gocore.Log("Example server")
-
 func main() {
 
 	s := gocore.NewStat("something")
