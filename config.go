@@ -450,6 +450,21 @@ func (c *Configuration) GetURL(key string, defaultValue ...string) (*url.URL, er
 	return u, nil, ok
 }
 
+func (c *Configuration) GetAll() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	m := make(map[string]string, 0)
+
+	m["_SETTINGS_CONTEXT"] = c.context
+
+	for k, v := range c.confs {
+		m[k] = v
+	}
+
+	return m
+}
+
 // Stats comment
 func (c *Configuration) Stats() string {
 	out := "\nSETTINGS_CONTEXT\n----------------\n"
