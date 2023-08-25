@@ -529,7 +529,7 @@ func (l *Logger) handleConfig(r []string, conn net.Conn) {
 	switch r[1] {
 	case "requested":
 		requested := Config().Requested()
-		_ = l.write(conn, requested+"\n\n")
+		_ = l.write(conn, fmt.Sprintf("\n%s\n\n", requested))
 
 	case "show":
 		stats := Config().Stats()

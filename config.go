@@ -479,7 +479,21 @@ func (c *Configuration) Requested() string {
 
 	var builder strings.Builder
 
-	for k, v := range c.requests {
+	keysMap := make(map[string]struct{}, 0)
+	for item := range c.requests {
+		keysMap[item] = struct{}{}
+	}
+
+	// Sort the keys...
+	keysArr := make([]string, 0)
+	for k := range keysMap {
+		keysArr = append(keysArr, k)
+	}
+	sort.Strings(keysArr)
+
+	for _, k := range keysArr {
+		v := c.requests[k]
+
 		builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
 	}
 
@@ -488,6 +502,9 @@ func (c *Configuration) Requested() string {
 
 // Stats comment
 func (c *Configuration) Stats() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	var builder strings.Builder
 	builder.WriteString("\nSETTINGS_CONTEXT\n----------------\n")
 
