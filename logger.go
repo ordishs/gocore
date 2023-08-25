@@ -527,6 +527,10 @@ func (l *Logger) handleConfig(r []string, conn net.Conn) {
 	}
 
 	switch r[1] {
+	case "requested":
+		requested := Config().Requested()
+		_ = l.write(conn, requested+"\n\n")
+
 	case "show":
 		stats := Config().Stats()
 		_ = l.write(conn, stats+"\n\n")
@@ -655,8 +659,8 @@ func (l *Logger) help(conn net.Conn) {
 			description: "Turn on/off samplers mode with an optional Regex pattern",
 		},
 		{
-			cmd:         "config [get <key> | set <key> <value> | unset <key> | show ] ",
-			description: "Manage settings dynamically",
+			cmd:         "config [get <key> | set <key> <value> | unset <key> | show | requested ] ",
+			description: "Manage settings dynamically and show current settings or requested settings",
 		},
 		{
 			cmd:         "status",

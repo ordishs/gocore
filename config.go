@@ -24,9 +24,10 @@ import (
 
 // Configuration comment
 type Configuration struct {
-	confs   map[string]string
-	context string
-	mu      sync.RWMutex
+	confs    map[string]string
+	context  string
+	requests map[string]string
+	mu       sync.RWMutex
 }
 
 var (
@@ -134,6 +135,7 @@ func Config() *Configuration {
 		}
 
 		c.confs = make(map[string]string, 0)
+		c.requests = make(map[string]string, 0)
 
 		filename, err := processFile(c.confs, "settings.conf")
 		if err != nil {
@@ -336,7 +338,13 @@ func (c *Configuration) decrypt(val string) string {
 
 func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 	s, ok := c.getInternal(key, defaultValue...)
-	return strings.TrimPrefix(s, "*EHE*"), ok
+	val := strings.TrimPrefix(s, "*EHE*")
+
+	c.mu.Lock()
+	c.requests[key] = val
+	c.mu.Unlock()
+
+	return val, ok
 }
 
 // Get (key, defaultValue)
@@ -465,17 +473,32 @@ func (c *Configuration) GetAll() map[string]string {
 	return m
 }
 
-// Stats comment
-func (c *Configuration) Stats() string {
-	out := "\nSETTINGS_CONTEXT\n----------------\n"
+func (c *Configuration) Requested() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-	if c.context != "dev" {
-		out = out + c.context
-	} else {
-		out = out + "Not set (dev)"
+	var builder strings.Builder
+
+	for k, v := range c.requests {
+		builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
 	}
 
-	out = out + "\n\nSETTINGS\n--------\n"
+	return builder.String()
+}
+
+// Stats comment
+func (c *Configuration) Stats() string {
+	var builder strings.Builder
+	builder.WriteString("\nSETTINGS_CONTEXT\n----------------\n")
+
+	if c.context != "dev" {
+		builder.WriteString(c.context)
+	} else {
+		builder.WriteString("Not set (dev)")
+	}
+
+	builder.WriteString("\n\nSETTINGS\n--------\n")
+
 	// Get a list of keys that do not have the SESSION_CONTEXT at the end
 	keysMap := make(map[string]struct{}, 0)
 	for item := range c.confs {
@@ -497,10 +520,10 @@ func (c *Configuration) Stats() string {
 
 		v = re.ReplaceAllString(v, "********************")
 
-		out = out + fmt.Sprintf("%s=%s\n", k, v)
+		builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
 	}
 
-	return out
+	return builder.String()
 }
 
 // Get context
