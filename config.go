@@ -27,6 +27,7 @@ type Configuration struct {
 	confs    map[string]string
 	context  string
 	requests map[string]string
+	rmu      sync.RWMutex
 	mu       sync.RWMutex
 }
 
@@ -340,9 +341,9 @@ func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 	s, ok := c.getInternal(key, defaultValue...)
 	val := strings.TrimPrefix(s, "*EHE*")
 
-	c.mu.Lock()
+	c.rmu.Lock()
 	c.requests[key] = val
-	c.mu.Unlock()
+	c.rmu.Unlock()
 
 	return val, ok
 }
@@ -480,9 +481,11 @@ func (c *Configuration) Requested() string {
 	var builder strings.Builder
 
 	keysMap := make(map[string]struct{}, 0)
+	c.rmu.RLock()
 	for item := range c.requests {
 		keysMap[item] = struct{}{}
 	}
+	c.rmu.RUnlock()
 
 	// Sort the keys...
 	keysArr := make([]string, 0)
@@ -491,11 +494,13 @@ func (c *Configuration) Requested() string {
 	}
 	sort.Strings(keysArr)
 
+	c.rmu.RLock()
 	for _, k := range keysArr {
 		v := c.requests[k]
 
 		builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
 	}
+	c.rmu.RUnlock()
 
 	return builder.String()
 }
