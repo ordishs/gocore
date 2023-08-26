@@ -392,6 +392,22 @@ func (c *Configuration) getInternal(key string, defaultValue ...string) (string,
 	return c.decrypt(ret), false
 }
 
+func (c *Configuration) GetMulti(key string, sep string, defaultValue ...[]string) ([]string, bool) {
+	str, ok := c.Get(key)
+	if str == "" || !ok {
+		if len(defaultValue) > 0 {
+			return defaultValue[0], false
+		}
+		return []string{}, false
+	}
+
+	items := strings.Split(str, sep)
+	for i, item := range items {
+		items[i] = strings.TrimSpace(item)
+	}
+	return items, ok
+}
+
 // GetInt comment
 func (c *Configuration) GetInt(key string, defaultValue ...int) (int, bool) {
 	str, ok := c.Get(key)

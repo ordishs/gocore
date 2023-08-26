@@ -20,6 +20,14 @@ func TestGetExistingKey(t *testing.T) {
 	}
 }
 
+func TestGetMulti(t *testing.T) {
+	res, ok := Config().GetMulti("multi", ",")
+	require.True(t, ok)
+	assert.Len(t, res, 3)
+	assert.Equal(t, "simon", res[0])
+	assert.Equal(t, "peter", res[1])
+}
+
 func TestGetExistingKeyInt(t *testing.T) {
 	name, ok := Config().Get("tel")
 	if name != "20289202982" {
