@@ -160,6 +160,31 @@ func Config() *Configuration {
 			}
 		}
 
+		// Now match each value by a regex \$\{.*\} and substitute the value of the variable
+		// with the value in the map.
+		//
+		// For example, if the map contains:
+		//   "port" : "8080"
+		// and the value is:
+		//   "http://localhost:${port}/api"
+		// then the value will be substituted with:
+		//   "http://localhost:8080/api"
+		//
+
+		re := regexp.MustCompile(`(\$\{.*?\})`)
+
+		for k, v := range c.confs {
+			matches := re.FindAllString(v, -1)
+			for _, match := range matches {
+				key := match[2 : len(match)-1]
+				val, ok := c.Get(key)
+				if ok {
+					v = strings.Replace(v, match, val, 1)
+				}
+			}
+			c.confs[k] = v
+		}
+
 		advertisingURL, _ := c.Get("advertisingURL")
 
 		if advertisingURL != "" {
