@@ -51,6 +51,10 @@ func init() {
 	}
 }
 
+func GetStatPrefix() string {
+	return statPrefix
+}
+
 // Stat comment
 type Stat struct {
 	mu                 sync.RWMutex
