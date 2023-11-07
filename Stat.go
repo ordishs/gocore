@@ -336,13 +336,13 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "<thead>\r\n")
 	fmt.Fprintf(p, "<tr>\r\n")
 	fmt.Fprintf(p, "<th>Item</th>\r\n")
-	fmt.Fprintf(p, "<th align='right'>total</th>\r\n")
 	fmt.Fprintf(p, "<th align='right'>count</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>average</th>\r\n")
 	fmt.Fprintf(p, "<th align='right'>first</th>\r\n")
 	fmt.Fprintf(p, "<th align='right'>last</th>\r\n")
 	fmt.Fprintf(p, "<th align='right'>min</th>\r\n")
 	fmt.Fprintf(p, "<th align='right'>max</th>\r\n")
-	fmt.Fprintf(p, "<th align='right'>average</th>\r\n")
+	fmt.Fprintf(p, "<th align='right'>total</th>\r\n")
 	fmt.Fprintf(p, "<th>first run</th>\r\n")
 	fmt.Fprintf(p, "<th>last run</th>\r\n")
 	fmt.Fprintf(p, "</tr>\r\n")
@@ -386,18 +386,19 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 			fmt.Fprintf(p, "<td>%s</td>\r\n", key)
 		}
 
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", addThousandsOperator(item.count))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.average()))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.firstDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.lastDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.minDuration))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.maxDuration))
+
 		if item.hideTotal {
 			fmt.Fprintf(p, "<td></td>\r\n")
 		} else {
 			fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.totalDuration))
 		}
 
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", addThousandsOperator(item.count))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.firstDuration))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.lastDuration))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.minDuration))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.maxDuration))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.average()))
 		fmt.Fprintf(p, "<td>%s</td>\r\n", item.firstTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "<td>%s</td>\r\n", item.lastTime.Format("2006-01-02 15:04:05.000"))
 		fmt.Fprintf(p, "</tr>\r\n")
