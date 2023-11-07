@@ -192,9 +192,9 @@ func (s *Stat) String() string {
 func StartStatsServer(addr string) {
 	logger := Log("stats")
 
-	http.HandleFunc("/stats", handleStats)
-	http.HandleFunc("/reset", resetStats)
-	http.HandleFunc("/", handleOther)
+	http.HandleFunc("/stats", HandleStats)
+	http.HandleFunc("/reset", ResetStats)
+	http.HandleFunc("/", HandleOther)
 
 	logger.Infof("Starting StatsServer on http://%s/stats", addr)
 	var err = http.ListenAndServe(addr, nil)
@@ -204,7 +204,7 @@ func StartStatsServer(addr string) {
 	}
 }
 
-func handleStats(w http.ResponseWriter, r *http.Request) {
+func HandleStats(w http.ResponseWriter, r *http.Request) {
 	keysParam := r.URL.Query().Get("key")
 	RootStat.mu.RLock()
 	defer RootStat.mu.RUnlock()
@@ -212,7 +212,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	RootStat.printStatisticsHTML(w, RootStat, keysParam)
 }
 
-func resetStats(w http.ResponseWriter, r *http.Request) {
+func ResetStats(w http.ResponseWriter, r *http.Request) {
 	keysParam := r.URL.Query().Get("key")
 	item := RootStat
 
@@ -226,7 +226,7 @@ func resetStats(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/stats", http.StatusSeeOther)
 }
 
-func handleOther(w http.ResponseWriter, r *http.Request) {
+func HandleOther(w http.ResponseWriter, r *http.Request) {
 	var resource string
 
 	path := r.URL.Path
@@ -422,4 +422,8 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 func addThousandsOperator(num int64) string {
 	p := message.NewPrinter(language.English)
 	return p.Sprintf("%d\n", num)
+}
+
+func G() {
+
 }
