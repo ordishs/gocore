@@ -21,8 +21,9 @@ var (
 
 	embeddedFS embed.FS
 
-	initTime = time.Now().UTC()
-	RootStat = &Stat{
+	statPrefix string
+	initTime   = time.Now().UTC()
+	RootStat   = &Stat{
 		key:                "root",
 		children:           make(map[string]*Stat),
 		ignoreChildUpdates: true,
@@ -39,6 +40,14 @@ func init() {
 	reportedTimeThreshold, err = time.ParseDuration(reportedTimeThresholdStr)
 	if err != nil {
 		reportedTimeThreshold = 5 * time.Minute
+	}
+
+	statPrefix, _ = Config().Get("stats_prefix", "/") // Use the desired default prefix or configuration key
+	if !strings.HasPrefix(statPrefix, "/") {
+		statPrefix = "/" + statPrefix
+	}
+	if !strings.HasSuffix(statPrefix, "/") {
+		statPrefix += "/"
 	}
 }
 
@@ -192,11 +201,11 @@ func (s *Stat) String() string {
 func StartStatsServer(addr string) {
 	logger := Log("stats")
 
-	http.HandleFunc("/stats", HandleStats)
-	http.HandleFunc("/reset", ResetStats)
-	http.HandleFunc("/", HandleOther)
+	http.HandleFunc(statPrefix+"stats", HandleStats)
+	http.HandleFunc(statPrefix+"reset", ResetStats)
+	http.HandleFunc(statPrefix+"", HandleOther)
 
-	logger.Infof("Starting StatsServer on http://%s/stats", addr)
+	logger.Infof("Starting StatsServer on http://%s%sstats", addr, statPrefix)
 	var err = http.ListenAndServe(addr, nil)
 
 	if err != nil {
@@ -223,7 +232,7 @@ func ResetStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	item.reset()
-	http.Redirect(w, r, "/stats", http.StatusSeeOther)
+	http.Redirect(w, r, statPrefix+"stats", http.StatusSeeOther)
 }
 
 func HandleOther(w http.ResponseWriter, r *http.Request) {
@@ -231,10 +240,11 @@ func HandleOther(w http.ResponseWriter, r *http.Request) {
 
 	path := r.URL.Path
 
-	if path == "/" {
+	trimmedPath := strings.TrimPrefix(path, statPrefix)
+	if trimmedPath == "/" || trimmedPath == "" {
 		resource = "embed/index.html"
 	} else {
-		resource = fmt.Sprintf("embed%s", path)
+		resource = fmt.Sprintf("embed/%s", trimmedPath)
 	}
 
 	b, err := embeddedFS.ReadFile(resource)
@@ -282,8 +292,8 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "</title>\r\n")
 	fmt.Fprintf(p, "<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jquery/1.3.2/jquery.min.js'></script>")
 	fmt.Fprintf(p, "<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js'></script>")
-	fmt.Fprintf(p, "<script type='text/javascript' src='/js/chili-1.8b.js'></script>")
-	fmt.Fprintf(p, "<link rel='stylesheet' href='/css/statistics.css' type='text/css' media='print, projection, screen' />")
+	fmt.Fprintf(p, "<script type='text/javascript' src='"+statPrefix+"js/chili-1.8b.js'></script>")
+	fmt.Fprintf(p, "<link rel='stylesheet' href='"+statPrefix+"css/statistics.css' type='text/css' media='print, projection, screen' />")
 	fmt.Fprintf(p, "<script type='text/javascript'>\r\n")
 
 	fmt.Fprintf(p, "$(document).ready(function() \r\n")
@@ -323,7 +333,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "</td>\r\n")
 	// 		// New button
 	fmt.Fprint(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")
-	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='reset' method='get'>\r\n")
+	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='"+statPrefix+"reset' method='get'>\r\n")
 	// 		// Using location.replace here so that the history buffer is not messed up for going back a page.
 	fmt.Fprintf(p, "<input type='button' value='Reset Statistics' onClick='window.location.replace(\"reset?key=%s\");'>\r\n", keysParam)
 	fmt.Fprintf(p, "</form>\r\n")
@@ -381,7 +391,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 		fmt.Fprintf(p, "<tr>\r\n")
 		if len(item.children) > 0 {
 			// childKey := keysParam + key
-			fmt.Fprintf(p, "<td><a href='/stats?key=%s'>%s</a></td>\r\n", keysParam+key, key)
+			fmt.Fprintf(p, "<td><a href='%sstats?key=%s'>%s</a></td>\r\n", statPrefix, keysParam+key, key)
 		} else {
 			fmt.Fprintf(p, "<td>%s</td>\r\n", key)
 		}
@@ -422,8 +432,4 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 func addThousandsOperator(num int64) string {
 	p := message.NewPrinter(language.English)
 	return p.Sprintf("%d\n", num)
-}
-
-func G() {
-
 }
