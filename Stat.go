@@ -25,7 +25,6 @@ var (
 	initTime   = time.Now().UTC()
 	RootStat   = &Stat{
 		key:                "root",
-		children:           make(map[string]*Stat),
 		ignoreChildUpdates: true,
 	}
 
@@ -60,7 +59,7 @@ type Stat struct {
 	mu                 sync.RWMutex
 	key                string
 	parent             *Stat
-	children           map[string]*Stat
+	childMap           sync.Map
 	ignoreChildUpdates bool
 	hideTotal          bool
 	firstDuration      time.Duration
@@ -78,25 +77,16 @@ func NewStat(key string, options ...bool) *Stat {
 }
 
 func (s *Stat) NewStat(key string, options ...bool) *Stat {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	stat, _ := s.childMap.LoadOrStore(key, &Stat{
+		key:    key,
+		parent: s,
+	})
 
-	stat, ok := s.children[key]
-	if !ok {
-		stat = &Stat{
-			key:      key,
-			parent:   s,
-			children: make(map[string]*Stat),
-		}
-
-		if len(options) > 0 {
-			stat.ignoreChildUpdates = options[0]
-		}
-
-		s.children[key] = stat
+	if len(options) > 0 {
+		stat.(*Stat).ignoreChildUpdates = options[0]
 	}
 
-	return stat
+	return stat.(*Stat)
 }
 
 func (s *Stat) HideTotal(b bool) {
@@ -104,10 +94,11 @@ func (s *Stat) HideTotal(b bool) {
 }
 
 func (s *Stat) getChild(key string) *Stat {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	if stat, ok := s.childMap.Load(key); ok {
+		return stat.(*Stat)
+	}
 
-	return s.children[key]
+	return nil
 }
 
 func (s *Stat) processTime(now time.Time, duration time.Duration) {
@@ -164,7 +155,6 @@ func (s *Stat) AddTime(startNanos int64) int64 {
 
 func (s *Stat) reset() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	s.firstDuration = 0
 	s.lastDuration = 0
@@ -175,32 +165,32 @@ func (s *Stat) reset() {
 	s.firstTime = time.Time{}
 	s.lastTime = time.Time{}
 
-	for _, stat := range s.children {
-		stat.reset()
-	}
+	s.mu.Unlock()
+
+	s.childMap.Range(func(_, value interface{}) bool {
+		value.(*Stat).reset()
+		return true
+	})
 }
 
 func CurrentNanos() int64 {
 	return time.Now().UnixNano()
 }
 
-func (s *Stat) average() time.Duration {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.count == 0 {
+func average(totalDuration time.Duration, count int64) time.Duration {
+	if count == 0 {
 		return 0
 	}
 
-	return time.Duration(s.totalDuration.Nanoseconds() / s.count)
+	return time.Duration(totalDuration.Nanoseconds() / count)
 }
 
-func (s *Stat) String() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// func (s *Stat) String() string {
+// 	s.mu.RLock()
+// 	defer s.mu.RUnlock()
 
-	return fmt.Sprintf("%s (%t): %s (%d)", s.key, s.ignoreChildUpdates, utils.HumanTime(s.totalDuration), s.count)
-}
+// 	return fmt.Sprintf("%s (%t): %s (%d)", s.key, s.ignoreChildUpdates, utils.HumanTime(s.totalDuration), s.count)
+// }
 
 func StartStatsServer(addr string) {
 	logger := Log("stats")
@@ -219,8 +209,6 @@ func StartStatsServer(addr string) {
 
 func HandleStats(w http.ResponseWriter, r *http.Request) {
 	keysParam := r.URL.Query().Get("key")
-	RootStat.mu.RLock()
-	defer RootStat.mu.RUnlock()
 
 	RootStat.printStatisticsHTML(w, RootStat, keysParam)
 }
@@ -366,10 +354,6 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 
 	item := root
 
-	if item.children == nil {
-		item.children = make(map[string]*Stat)
-	}
-
 	var keys []string
 	if keysParam != "" {
 		keys = strings.Split(keysParam, ",")
@@ -389,19 +373,22 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 
 	fmt.Fprintf(p, "<h2>Server started: %s [%s ago]</h2>\r\n", initTime.Format("2006-01-02 15:04:05.000"), utils.HumanTimeUnitHTML(time.Since(initTime)))
 
-	for key, item := range item.children {
+	item.childMap.Range(func(keyI, itemI interface{}) bool {
+		item := itemI.(*Stat)
+
 		item.mu.RLock()
 
 		fmt.Fprintf(p, "<tr>\r\n")
-		if len(item.children) > 0 {
+
+		if hasChildren(&item.childMap) {
 			// childKey := keysParam + key
-			fmt.Fprintf(p, "<td><a href='%sstats?key=%s'>%s</a></td>\r\n", statPrefix, keysParam+key, key)
+			fmt.Fprintf(p, "<td><a href='%sstats?key=%s'>%s</a></td>\r\n", statPrefix, keysParam+keyI.(string), keyI.(string))
 		} else {
-			fmt.Fprintf(p, "<td>%s</td>\r\n", key)
+			fmt.Fprintf(p, "<td>%s</td>\r\n", keyI.(string))
 		}
 
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", addThousandsOperator(item.count))
-		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.average()))
+		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(average(item.totalDuration, item.count)))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.firstDuration))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.lastDuration))
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", utils.HumanTimeUnitHTML(item.minDuration))
@@ -418,7 +405,9 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 		fmt.Fprintf(p, "</tr>\r\n")
 
 		item.mu.RUnlock()
-	}
+
+		return true // keep iterating
+	})
 
 	fmt.Fprintf(p, "</tbody>\r\n")
 
@@ -436,4 +425,15 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 func addThousandsOperator(num int64) string {
 	p := message.NewPrinter(language.English)
 	return p.Sprintf("%d\n", num)
+}
+
+func hasChildren(m *sync.Map) bool {
+	var hasChildren bool
+
+	m.Range(func(_, _ interface{}) bool {
+		hasChildren = true
+		return false // stop iteration immediately after finding the first item
+	})
+
+	return hasChildren
 }
