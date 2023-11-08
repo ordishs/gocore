@@ -278,41 +278,47 @@ func HandleOther(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
-	fmt.Fprintf(p, "<html><head>\r\n")
-	fmt.Fprintf(p, "<title>\r\n")
-	fmt.Fprintf(p, "GoCore Statistics\r\n")
-	fmt.Fprintf(p, "</title>\r\n")
-	fmt.Fprintf(p, "<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jquery/1.3.2/jquery.min.js'></script>")
-	fmt.Fprintf(p, "<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js'></script>")
-	fmt.Fprintf(p, "<script type='text/javascript' src='"+statPrefix+"js/chili-1.8b.js'></script>")
-	fmt.Fprintf(p, "<link rel='stylesheet' href='"+statPrefix+"css/statistics.css' type='text/css' media='print, projection, screen' />")
-	fmt.Fprintf(p, "<script type='text/javascript'>\r\n")
 
-	fmt.Fprintf(p, "$(document).ready(function() \r\n")
-	fmt.Fprintf(p, "{ \r\n")
-	fmt.Fprintf(p, "$('#myTable').tablesorter( {\r\n")
-	fmt.Fprintf(p, "sortList: [[1,1]],\r\n")
-	fmt.Fprintf(p, "debug: false,\r\n")
-	fmt.Fprintf(p, "widgets: ['zebra'],\r\n")
-	fmt.Fprintf(p, "headers: {\r\n")
-	fmt.Fprintf(p, "0: {sorter: 'text'},\r\n")
-	fmt.Fprintf(p, "1: {sorter: 'timings'},\r\n")
-	fmt.Fprintf(p, "2: {sorter: 'number'},\r\n")
-	fmt.Fprintf(p, "3: {sorter: 'timings'},\r\n")
-	fmt.Fprintf(p, "4: {sorter: 'timings'},\r\n")
-	fmt.Fprintf(p, "5: {sorter: 'timings'},\r\n")
-	fmt.Fprintf(p, "6: {sorter: 'timings'},\r\n")
-	fmt.Fprintf(p, "7: {sorter: 'timings'},\r\n")
-	fmt.Fprintf(p, "8: {sorter: 'usLongDate'},\r\n")
-	fmt.Fprintf(p, "9: {sorter: 'usLongDate'}\r\n")
+	fmt.Fprintf(p, `
+	<html>
+		<head>
+			<title>
+			GoCore Statistics
+			</title>
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.4.3/jquery.min.js" integrity="sha512-xqRHwg8Pg0JQ+nne5mBy3SGrGDihpsr5UYuMgIcVj1SMfSKrRJNvu7tFitaK70xDpSsBBIVpTcTGXnmx7/Q2xw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js" integrity="sha512-qzgd5cYSZcosqpzpn7zF2ZId8f/8CHmFKZ8j7mU4OUXTNRd5g+ZHBPsgKEwoqxCtdQvExE5LprwwPAgoicguNg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.widgets.min.js" integrity="sha512-dj/9K5GRIEZu+Igm9tC16XPOTz0RdPk9FGxfZxShWf65JJNU2TjbElGjuOo3EhwAJRPhJxwEJ5b+/Ouo+VqZdQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+			<script type='text/javascript' src='%sjs/chili-1.8b.js'></script>
+			<link rel='stylesheet' href='%scss/statistics.css' type='text/css' media='print, projection, screen' />
 
-	fmt.Fprintf(p, "}\r\n")
-	fmt.Fprintf(p, "} )\r\n")
+			<script type='text/javascript'>
+				$(document).ready(function() 
+				{ 
+						$('#myTable').tablesorter({ 
+								sortList: [[1,1]], 
+								debug: false, 
+								widgets: ['zebra', 'saveSort'], 
+								headers: { 
+										0: {sorter: 'text'}, 
+										1: {sorter: 'timings'}, 
+										2: {sorter: 'number'}, 
+										3: {sorter: 'timings'}, 
+										4: {sorter: 'timings'}, 
+										5: {sorter: 'timings'}, 
+										6: {sorter: 'timings'}, 
+										7: {sorter: 'timings'}, 
+										8: {sorter: 'usLongDate'}, 
+										9: {sorter: 'usLongDate'} 
+								}, 
+								widgetOptions: { 
+										saveSort: true 
+								} 
+						}); 
+				})  
+				</script>
+			</head>
+	`, statPrefix, statPrefix)
 
-	fmt.Fprintf(p, "} \r\n")
-	fmt.Fprintf(p, ")  \r\n")
-	fmt.Fprintf(p, "</script>\r\n")
-	fmt.Fprintf(p, "</head>\r\n")
 	fmt.Fprintf(p, "<body>\r\n")
 
 	fmt.Fprint(p, "<table width='100%'>\r\n")
