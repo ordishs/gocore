@@ -136,21 +136,19 @@ func (s *Stat) processTime(now time.Time, duration time.Duration) {
 }
 
 // AddTime comment
-func (s *Stat) AddTime(startNanos int64) int64 {
+func (s *Stat) AddTime(startTime time.Time) time.Time {
 	now := time.Now().UTC()
 
-	endNanos := now.UnixNano()
+	duration := now.Sub(startTime)
 
-	if endNanos < startNanos {
-		log.Printf("%s: EndNanos is less than StartNanos", s.key)
-		return endNanos
+	if duration < 0 {
+		log.Printf("%s: startTime is in the future", s.key)
+		return now
 	}
 
-	diff := endNanos - startNanos
+	s.processTime(now, duration)
 
-	s.processTime(now, time.Duration(diff))
-
-	return endNanos
+	return now
 }
 
 func (s *Stat) reset() {
@@ -173,8 +171,8 @@ func (s *Stat) reset() {
 	})
 }
 
-func CurrentNanos() int64 {
-	return time.Now().UnixNano()
+func CurrentTime() time.Time {
+	return time.Now().UTC()
 }
 
 func average(totalDuration time.Duration, count int64) time.Duration {

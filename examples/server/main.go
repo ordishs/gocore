@@ -9,32 +9,33 @@ import (
 )
 
 func main() {
-
 	s := gocore.NewStat("something")
-	s.AddTime(time.Now().UTC().UnixNano())
-	s.AddTime(time.Now().UTC().UnixNano())
-	s.AddTime(time.Now().UTC().UnixNano())
-	s.AddTime(time.Now().UTC().UnixNano())
-	s.AddTime(time.Now().UTC().UnixNano())
-	s.AddTime(time.Now().UTC().UnixNano())
+	s.AddTime(time.Now().UTC())
+	s.AddTime(time.Now().UTC())
+	s.AddTime(time.Now().UTC())
+	s.AddTime(time.Now().UTC())
+	s.AddTime(time.Now().UTC())
+	s.AddTime(time.Now().UTC())
 
 	g := gocore.NewStat("else")
-	g.AddTime(time.Now().UTC().UnixNano())
-	g.AddTime(time.Now().UTC().UnixNano())
+	time.Sleep(time.Millisecond * 100)
+	g.AddTime(time.Now().UTC())
+	g.AddTime(time.Now().UTC())
 
 	h := g.NewStat("hello")
-	h.AddTime(time.Now().UTC().UnixNano())
+	h.AddTime(time.Now().UTC())
 
 	j := h.NewStat("Another")
-	j.AddTime(time.Now().UTC().UnixNano())
+	j.AddTime(time.Now().UTC())
 
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 100)
 
 		for range ticker.C {
+			start := time.Now().UTC().Add(-1 * time.Nanosecond)
 			key := fmt.Sprintf("stat_%d", rand.Intn(10))
 			h := gocore.NewStat(key)
-			h.AddTime(time.Now().UTC().UnixNano() - 1)
+			h.AddTime(start)
 		}
 	}()
 	gocore.StartStatsServer("localhost:9001")
