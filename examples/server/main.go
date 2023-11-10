@@ -17,6 +17,10 @@ func main() {
 	s.AddTime(time.Now().UTC())
 	s.AddTime(time.Now().UTC())
 
+	l := gocore.NewStat("long")
+	l.AddTime(time.Now().UTC().Add(-1 * time.Minute))
+	l.AddTime(time.Now().UTC().Add(-1 * time.Minute))
+
 	g := gocore.NewStat("else")
 	time.Sleep(time.Millisecond * 100)
 	g.AddTime(time.Now().UTC())

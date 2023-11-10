@@ -302,7 +302,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 						ns: 1                  // nanoseconds
 					};
 
-					const regex = /(\d+(\.\d+)?)(d|h|m|s|ms|µs|ns)/g;
+					const regex = /(\d+(\.\d+)?)(d|h|ms|ns|m|µs|s)/g;
 			
 					let totalNanoseconds = 0;
 			
@@ -311,9 +311,11 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 					for (const match of matches) {
 							const value = parseFloat(match[1]);
 							const timeUnit = match[3];
+							// console.log(value, timeUnit, value * (timeUnits[timeUnit] || 0))
 							totalNanoseconds += value * (timeUnits[timeUnit] || 0);
 					}
 					
+					// console.log(duration, totalNanoseconds)
 					return totalNanoseconds;
 				}
 			
@@ -327,7 +329,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 						format: function(s) {
 							return convertToNanoseconds(s);
 						},
-						type: 'text'
+						type: 'numeric'
 					});
 
 					$('#myTable').tablesorter({ 
