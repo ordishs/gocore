@@ -290,28 +290,66 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 			<link rel='stylesheet' href='%scss/statistics.css' type='text/css' media='print, projection, screen' />
 
 			<script type='text/javascript'>
-				$(document).ready(function() 
-				{ 
-						$('#myTable').tablesorter({ 
-								sortList: [[1,1]], 
-								debug: false, 
-								widgets: ['zebra', 'saveSort'], 
-								headers: { 
-										0: {sorter: 'text'}, 
-										1: {sorter: 'timings'}, 
-										2: {sorter: 'number'}, 
-										3: {sorter: 'timings'}, 
-										4: {sorter: 'timings'}, 
-										5: {sorter: 'timings'}, 
-										6: {sorter: 'timings'}, 
-										7: {sorter: 'timings'}, 
-										8: {sorter: 'usLongDate'}, 
-										9: {sorter: 'usLongDate'} 
-								}, 
-								widgetOptions: { 
-										saveSort: true 
-								} 
-						}); 
+
+				function convertToNanoseconds(duration) {
+					const timeUnits = {
+						d: 24 * 60 * 60 * 1e9, // days to nanoseconds
+						h: 60 * 60 * 1e9,      // hours to nanoseconds
+						m: 60 * 1e9,           // minutes to nanoseconds
+						s: 1e9,                // seconds to nanoseconds
+						ms: 1e6,               // milliseconds to nanoseconds
+						µs: 1e3,               // microseconds to nanoseconds
+						ns: 1                  // nanoseconds
+					};
+
+					const regex = /(\d+(\.\d+)?)(d|h|m|s|ms|µs|ns)/g;
+			
+					let totalNanoseconds = 0;
+			
+					const matches = duration.matchAll(regex);
+				
+					for (const match of matches) {
+							const value = parseFloat(match[1]);
+							const timeUnit = match[3];
+							totalNanoseconds += value * (timeUnits[timeUnit] || 0);
+					}
+					
+					return totalNanoseconds;
+				}
+			
+				$(document).ready(function() {
+					$.tablesorter.addParser({
+						id: 'timings',
+						is: function(s) {
+							// Return false so this parser is not auto detected
+							return false;
+						},
+						format: function(s) {
+							return convertToNanoseconds(s);
+						},
+						type: 'text'
+					});
+
+					$('#myTable').tablesorter({ 
+						sortList: [[1,1]], 
+						debug: false, 
+						widgets: ['zebra', 'saveSort'], 
+						headers: { 
+							0: {sorter: 'text'}, 
+							1: {sorter: 'number'}, 
+							2: {sorter: 'timings'}, 
+							3: {sorter: 'timings'}, 
+							4: {sorter: 'timings'}, 
+							5: {sorter: 'timings'}, 
+							6: {sorter: 'timings'}, 
+							7: {sorter: 'timings'}, 
+							8: {sorter: 'usLongDate'}, 
+							9: {sorter: 'usLongDate'} 
+						}, 
+						widgetOptions: { 
+							saveSort: true 
+						} 
+					}); 
 				})  
 				</script>
 			</head>
