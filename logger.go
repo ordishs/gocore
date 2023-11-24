@@ -180,7 +180,7 @@ func Log(packageNameStr string, logLevelOption ...logLevel) *Logger {
 func (l *Logger) write(w io.Writer, s string) error {
 	if w == nil {
 		l.Errorf("Writing client error: %+v", "Writer is nil")
-		return errors.New("Writer is nil")
+		return errors.New("writer is nil")
 	}
 
 	_, err := w.Write([]byte(s))
