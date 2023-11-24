@@ -2,6 +2,7 @@ package gocore
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -177,6 +178,11 @@ func Log(packageNameStr string, logLevelOption ...logLevel) *Logger {
 }
 
 func (l *Logger) write(w io.Writer, s string) error {
+	if w == nil {
+		l.Errorf("Writing client error: %+v", "Writer is nil")
+		return errors.New("Writer is nil")
+	}
+
 	_, err := w.Write([]byte(s))
 	if err != nil {
 		l.Errorf("Writing client error: %+v", err)
@@ -408,7 +414,9 @@ func (l *Logger) handleIncomingMessage(conn net.Conn) {
 			cmd := scanner.Text()
 			s, err := utils.SplitArgs(cmd)
 			if err != nil {
-				_ = l.write(conn, fmt.Sprintf("  Cannot split command: %v\n\n", err))
+				if err := l.write(conn, fmt.Sprintf("  Cannot split command: %v\n\n", err)); err != nil {
+					return
+				}
 			}
 
 			switch s[0] {
@@ -430,7 +438,9 @@ func (l *Logger) handleIncomingMessage(conn net.Conn) {
 			case "":
 
 			default:
-				_ = l.write(conn, fmt.Sprintf("  Command not found: %s\n\n", cmd))
+				if err := l.write(conn, fmt.Sprintf("  Command not found: %s\n\n", cmd)); err != nil {
+					return
+				}
 			}
 		}
 	}()
