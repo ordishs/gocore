@@ -77,16 +77,23 @@ func NewStat(key string, options ...bool) *Stat {
 }
 
 func (s *Stat) NewStat(key string, options ...bool) *Stat {
-	stat, _ := s.childMap.LoadOrStore(key, &Stat{
+	newStat := &Stat{
 		key:    key,
 		parent: s,
-	})
-
-	if len(options) > 0 {
-		stat.(*Stat).ignoreChildUpdates = options[0]
 	}
 
-	return stat.(*Stat)
+	if len(options) > 0 {
+		newStat.ignoreChildUpdates = options[0]
+	}
+
+	stat, loaded := s.childMap.LoadOrStore(key, newStat)
+	if loaded {
+		// If the stat was already in the map, it's returned as is.
+		return stat.(*Stat)
+	}
+
+	// If the stat was not in the map, the newly created stat is returned.
+	return newStat
 }
 
 func (s *Stat) HideTotal(b bool) {
