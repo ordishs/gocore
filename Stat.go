@@ -197,12 +197,15 @@ func average(totalDuration time.Duration, count int64) time.Duration {
 // 	return fmt.Sprintf("%s (%t): %s (%d)", s.key, s.ignoreChildUpdates, utils.HumanTime(s.totalDuration), s.count)
 // }
 
-func StartStatsServer(addr string) {
-	logger := Log("stats")
-
+func RegisterStatsHandlers() {
 	http.HandleFunc(statPrefix+"stats", HandleStats)
 	http.HandleFunc(statPrefix+"reset", ResetStats)
 	http.HandleFunc(statPrefix+"", HandleOther)
+}
+func StartStatsServer(addr string) {
+	logger := Log("stats")
+
+	RegisterStatsHandlers()
 
 	logger.Infof("Starting StatsServer on http://%s%sstats", addr, statPrefix)
 	var err = http.ListenAndServe(addr, nil)
