@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ordishs/gocore/utils"
@@ -30,6 +31,8 @@ var (
 
 	reportedTimeThresholdStr string
 	reportedTimeThreshold    time.Duration
+
+	queue *lockFreeQueue
 )
 
 func init() {
@@ -48,6 +51,21 @@ func init() {
 	if !strings.HasSuffix(statPrefix, "/") {
 		statPrefix += "/"
 	}
+
+	queue = newLockFreeQueue()
+
+	go func() {
+		for {
+			s := queue.dequeue()
+			if s == nil {
+				time.Sleep(1 * time.Millisecond)
+				continue
+			}
+
+			s.stat.processTime(s.now, s.duration)
+		}
+
+	}()
 }
 
 func GetStatPrefix() string {
@@ -153,7 +171,11 @@ func (s *Stat) AddTime(startTime time.Time) time.Time {
 		return now
 	}
 
-	s.processTime(now, duration)
+	queue.enqueue(&statItem{
+		stat:     s,
+		now:      now,
+		duration: duration,
+	})
 
 	return now
 }
@@ -490,4 +512,61 @@ func hasChildren(m *sync.Map) bool {
 	})
 
 	return hasChildren
+}
+
+type statItem struct {
+	stat     *Stat
+	now      time.Time
+	duration time.Duration
+	next     atomic.Pointer[statItem]
+}
+
+type lockFreeQueue struct {
+	head         atomic.Pointer[statItem]
+	tail         *statItem
+	previousTail *statItem
+	queueLength  atomic.Int64
+}
+
+// NewLockFreeQueue creates and initializes a LockFreeQueue
+func newLockFreeQueue() *lockFreeQueue {
+	firstTail := &statItem{}
+	lf := &lockFreeQueue{
+		head:         atomic.Pointer[statItem]{},
+		tail:         firstTail,
+		previousTail: firstTail,
+	}
+
+	lf.head.Store(nil)
+
+	return lf
+}
+
+// Enqueue adds a series of Request to the queue
+// enqueue is thread safe, it uses atomic operations to add to the queue
+func (q *lockFreeQueue) enqueue(v *statItem) {
+	prev := q.head.Swap(v)
+	if prev == nil {
+		q.tail.next.Store(v)
+		return
+	}
+	prev.next.Store(v)
+}
+
+// Dequeue removes a Request from the queue
+// dequeue is not thread safe, it should only be called from a single thread !!!
+func (q *lockFreeQueue) dequeue() *statItem {
+	next := q.tail.next.Load()
+
+	if next == nil || next == q.previousTail {
+		return nil
+	}
+
+	if next != nil {
+		q.tail = next
+	}
+
+	q.previousTail = next
+	q.queueLength.Add(-1)
+	return next
 }
