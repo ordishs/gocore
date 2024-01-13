@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/ordishs/gocore/utils"
 )
 
@@ -125,6 +126,28 @@ func processFile(m map[string]string, filename string) (string, error) {
 // Config comment
 func Config() *Configuration {
 	once.Do(func() {
+		// Before processing settings, use dotenv to load any environment variables .env file
+
+		// The .env file can be overridden by setting the environment variable
+		// SETTINGS_ENV_FILE to the full path of the file.
+		// For example:
+		//   SETTINGS_ENV_FILE=/home/user/.env
+		//	 SETTINGS_ENV_FILE=/home/user/.env.dev
+		//   SETTINGS_ENV_FILE=/home/user/.env.prod
+		//
+		// If the environment variable is not set, then the default file name is .env
+		envFile := os.Getenv("SETTINGS_ENV_FILE")
+		if envFile == "" {
+			envFile = ".env"
+		}
+
+		if _, err := os.Stat(envFile); err == nil {
+			err := godotenv.Load(envFile)
+			if err != nil {
+				log.Print("WARN: failed to loading .env file")
+			}
+		}
+
 		c = new(Configuration)
 
 		// Set the context by checking the environment variable SETTINGS_CONTEXT

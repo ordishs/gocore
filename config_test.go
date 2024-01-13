@@ -168,3 +168,8 @@ func TestURL4(t *testing.T) {
 // 	context := Config().GetContext()
 // 	assert.Equalf(t, "dev", context, "context is wrong")
 //}
+
+func TestCheckDotEnv(t *testing.T) {
+	val, _ := Config().Get("ENV_TEST")
+	assert.Equal(t, "123", val)
+}
