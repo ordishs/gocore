@@ -3,6 +3,7 @@ package gocore
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ordishs/gocore/utils"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,18 @@ func TestGetExistingKey(t *testing.T) {
 	name, ok := Config().Get("name")
 	assert.Equal(t, "Simon", name)
 	assert.True(t, ok)
+}
+
+func TestGetDuration(t *testing.T) {
+	d, err, ok := Config().GetDuration("millis")
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Second, d)
+	assert.True(t, ok)
+
+	_, err, ok = Config().GetDuration("millisErr")
+	require.Error(t, err)
+	assert.Equal(t, `time: unknown unit "fg" in duration "2fg"`, err.Error())
+	assert.False(t, ok)
 }
 
 func TestGetMulti(t *testing.T) {
@@ -173,3 +186,23 @@ func TestCheckDotEnv(t *testing.T) {
 	val, _ := Config().Get("ENV_TEST")
 	assert.Equal(t, "123", val)
 }
+
+func TestEmpty(t *testing.T) {
+	val, found := Config().Get("empty")
+	assert.True(t, found)
+	assert.Equal(t, "", val)
+}
+
+func TestMissing(t *testing.T) {
+	val, found := Config().Get("missing")
+	assert.False(t, found)
+	assert.Equal(t, "", val)
+}
+
+// func TestApplication(t *testing.T) {
+// 	val, found := Config().Get("app")
+// 	assert.True(t, found)
+// 	assert.Equal(t, "gocore", val)
+
+// 	t.Log(Config().Stats())
+// }

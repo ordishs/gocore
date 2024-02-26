@@ -27,6 +27,7 @@ import (
 type Configuration struct {
 	confs    map[string]string
 	context  string
+	app      string
 	requests map[string]string
 	rmu      sync.RWMutex
 	mu       sync.RWMutex
@@ -158,6 +159,12 @@ func Config() *Configuration {
 			c.context = "dev"
 		}
 
+		// Set the application by checking the environment variable SETTINGS_APPLICATION
+		app := os.Getenv("SETTINGS_APPLICATION")
+		if app != "" {
+			c.app = app
+		}
+
 		c.confs = make(map[string]string, 0)
 		c.requests = make(map[string]string, 0)
 
@@ -240,6 +247,7 @@ func Config() *Configuration {
 					Version           string                 `json:"version"`
 					Commit            string                 `json:"commit"`
 					Context           string                 `json:"context"`
+					Application       string                 `json:"application"`
 					SettingsFile      string                 `json:"settingsFile"`
 					LocalSettingsFile string                 `json:"localSettingsFile"`
 					Host              string                 `json:"host"`
@@ -290,6 +298,7 @@ func Config() *Configuration {
 						Version:           ver,
 						Commit:            c,
 						Context:           env,
+						Application:       app,
 						SettingsFile:      filename,
 						LocalSettingsFile: localFilename,
 						Host:              host,
@@ -386,7 +395,7 @@ func (c *Configuration) decrypt(val string) string {
 }
 
 func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
-	s, ok := c.getInternal(key, defaultValue...)
+	s, ok, _ := c.getInternal(key, defaultValue...)
 	val := strings.TrimPrefix(s, "*EHE*")
 
 	c.rmu.Lock()
@@ -397,29 +406,44 @@ func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 }
 
 // Get (key, defaultValue)
-func (c *Configuration) getInternal(key string, defaultValue ...string) (string, bool) {
+func (c *Configuration) getInternal(key string, defaultValue ...string) (string, bool, string) {
 	env := os.Getenv(key)
 	if env != "" {
-		return c.decrypt(env), true
+		return c.decrypt(env), true, "ENV"
 	}
 
+	ret, ok, keyUsed := c.findValue(key)
+	if ok {
+		return c.decrypt(ret), ok, keyUsed
+	}
+
+	if len(defaultValue) > 0 {
+		ret = defaultValue[0]
+	}
+
+	return c.decrypt(ret), false, "DEFAULT"
+}
+
+func (c *Configuration) findValue(key string) (ret string, ok bool, k string) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	var (
-		ret string
-		ok  bool
-	)
-
 	// Start with a copy of the context, i.e. "live.context"
-	k := key
+	k = key
 	if c.context != "" {
 		k += "." + c.context
 	}
 	for !ok {
+		if c.app != "" {
+			ret, ok = c.confs[k+"."+c.app]
+			if ok {
+				k = k + "." + c.app
+				return
+			}
+		}
 		ret, ok = c.confs[k]
 		if ok {
-			break
+			return
 		} else {
 			pos := strings.LastIndex(k, ".")
 			if pos == -1 {
@@ -429,15 +453,7 @@ func (c *Configuration) getInternal(key string, defaultValue ...string) (string,
 		}
 	}
 
-	if ok {
-		return c.decrypt(ret), ok
-	}
-
-	if len(defaultValue) > 0 {
-		ret = defaultValue[0]
-	}
-
-	return c.decrypt(ret), false
+	return
 }
 
 func (c *Configuration) GetMulti(key string, sep string, defaultValue ...[]string) ([]string, bool) {
@@ -488,6 +504,22 @@ func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
 		return false
 	}
 	return i
+}
+
+func (c *Configuration) GetDuration(key string, defaultValue ...time.Duration) (time.Duration, error, bool) {
+	str, ok := c.Get(key)
+	if str == "" || !ok {
+		if len(defaultValue) > 0 {
+			return defaultValue[0], nil, false
+		}
+		return 0, nil, false
+	}
+
+	d, err := time.ParseDuration(str)
+	if err != nil {
+		return 0, err, false
+	}
+	return d, nil, ok
 }
 
 func (c *Configuration) GetURL(key string, defaultValue ...string) (*url.URL, error, bool) {
@@ -575,12 +607,21 @@ func (c *Configuration) Stats() string {
 	defer c.mu.RUnlock()
 
 	var builder strings.Builder
-	builder.WriteString("\nSETTINGS_CONTEXT\n----------------\n")
+	builder.WriteString("\nSETTINGS_ENV\n")
+	builder.WriteString("------------\n")
+	builder.WriteString("Context:     ")
 
 	if c.context != "dev" {
 		builder.WriteString(c.context)
 	} else {
 		builder.WriteString("Not set (dev)")
+	}
+
+	builder.WriteString("\nApplication: ")
+	if c.app != "" {
+		builder.WriteString(c.app)
+	} else {
+		builder.WriteString("Not set")
 	}
 
 	builder.WriteString("\n\nSETTINGS\n--------\n")
@@ -602,11 +643,16 @@ func (c *Configuration) Stats() string {
 
 	// Now walk through the keys and look them up
 	for _, k := range keysArr {
-		v, _ := c.getInternal(k)
+		v, _, keyUsed := c.getInternal(k)
 
 		v = re.ReplaceAllString(v, "********************")
 
-		builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
+		context := strings.Replace(keyUsed, k, "", 1)
+		if context != "" {
+			builder.WriteString(fmt.Sprintf("%s[%s]=%s\n", k, context, v))
+		} else {
+			builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
+		}
 	}
 
 	return builder.String()
