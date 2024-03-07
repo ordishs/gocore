@@ -204,12 +204,17 @@ func Config() *Configuration {
 		re := regexp.MustCompile(`(\$\{.*?\})`)
 
 		for k, v := range c.confs {
-			matches := re.FindAllString(v, -1)
-			for _, match := range matches {
-				key := match[2 : len(match)-1]
-				val, ok := c.Get(key)
-				if ok {
-					v = strings.Replace(v, match, val, 1)
+			for {
+				matches := re.FindAllString(v, -1)
+				if len(matches) == 0 {
+					break // No more tokens to replace
+				}
+				for _, match := range matches {
+					key := match[2 : len(match)-1]
+					val, ok := c.Get(key)
+					if ok {
+						v = strings.Replace(v, match, val, 1)
+					}
 				}
 			}
 			c.confs[k] = v
