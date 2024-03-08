@@ -214,6 +214,8 @@ func Config() *Configuration {
 					val, ok := c.Get(key)
 					if ok {
 						v = strings.Replace(v, match, val, 1)
+					} else {
+						v = strings.Replace(v, match, "{UNKNOWN}", 1)
 					}
 				}
 			}
