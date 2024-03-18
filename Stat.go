@@ -117,11 +117,14 @@ func (s *Stat) NewStat(key string, options ...bool) *Stat {
 }
 
 func (s *Stat) NewStatWithRanges(key string, ranges ...int) *Stat {
-	newStat := &Stat{
-		key:    key,
-		parent: s,
-	}
+	newStat := s.NewStat(key)
 
+	newStat.AddRanges(ranges...)
+
+	return newStat
+}
+
+func (s *Stat) AddRanges(ranges ...int) {
 	if len(ranges) > 0 {
 		// sort the ranges
 		for i := 0; i < len(ranges); i++ {
@@ -134,23 +137,14 @@ func (s *Stat) NewStatWithRanges(key string, ranges ...int) *Stat {
 
 		for i := 0; i < len(ranges); i++ {
 			if i == 0 {
-				newStat.childMap.LoadOrStore(fmt.Sprintf("< %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: 0, rangeUpper: ranges[i]})
+				s.childMap.LoadOrStore(fmt.Sprintf("< %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: 0, rangeUpper: ranges[i]})
 			} else if i == len(ranges)-1 {
-				newStat.childMap.LoadOrStore(fmt.Sprintf(">= %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: ranges[i], rangeUpper: -1})
+				s.childMap.LoadOrStore(fmt.Sprintf(">= %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: ranges[i], rangeUpper: -1})
 			} else {
-				newStat.childMap.LoadOrStore(fmt.Sprintf("%s - %s", addThousandsOperatorTrim(ranges[i]), addThousandsOperatorTrim(ranges[i+1])), &Stat{rangeLower: ranges[i], rangeUpper: ranges[i+1]})
+				s.childMap.LoadOrStore(fmt.Sprintf("%s - %s", addThousandsOperatorTrim(ranges[i]), addThousandsOperatorTrim(ranges[i+1])), &Stat{rangeLower: ranges[i], rangeUpper: ranges[i+1]})
 			}
 		}
 	}
-
-	stat, loaded := s.childMap.LoadOrStore(key, newStat)
-	if loaded {
-		// If the stat was already in the map, it's returned as is.
-		return stat.(*Stat)
-	}
-
-	// If the stat was not in the map, the newly created stat is returned.
-	return newStat
 }
 
 func (s *Stat) HideTotal(b bool) {
@@ -209,15 +203,22 @@ func (s *Stat) AddTimeForRange(startTime time.Time, sampleSize int) time.Time {
 		return now
 	}
 
+	var found bool
+
 	// Work out which bucket this time fits into
 	s.childMap.Range(func(_, child interface{}) bool {
 		if child.(*Stat).rangeLower <= sampleSize && (child.(*Stat).rangeUpper == -1 || sampleSize < child.(*Stat).rangeUpper) {
 			child.(*Stat).processTime(now, duration)
+			found = true
 			return false // Stop iterating
 		}
 
 		return true // Keep iterating
 	})
+
+	if !found {
+		log.Printf("%s: sampleSize %d does not fit into any range", s.key, sampleSize)
+	}
 
 	return now
 }
