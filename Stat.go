@@ -116,14 +116,6 @@ func (s *Stat) NewStat(key string, options ...bool) *Stat {
 	return newStat
 }
 
-func (s *Stat) NewStatWithRanges(key string, ranges ...int) *Stat {
-	newStat := s.NewStat(key)
-
-	newStat.AddRanges(ranges...)
-
-	return newStat
-}
-
 func (s *Stat) AddRanges(ranges ...int) {
 	if len(ranges) > 0 {
 		// sort the ranges
@@ -136,12 +128,13 @@ func (s *Stat) AddRanges(ranges ...int) {
 		}
 
 		for i := 0; i < len(ranges); i++ {
-			if i == 0 {
-				s.childMap.LoadOrStore(fmt.Sprintf("< %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: 0, rangeUpper: ranges[i]})
-			} else if i == len(ranges)-1 {
-				s.childMap.LoadOrStore(fmt.Sprintf(">= %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: ranges[i], rangeUpper: -1})
+			// if i == 0 {
+			// 	s.childMap.LoadOrStore(fmt.Sprintf("< %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: 0, rangeUpper: ranges[i], parent: s})
+			// } else
+			if i == len(ranges)-1 {
+				s.childMap.LoadOrStore(fmt.Sprintf("%s -", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: ranges[i], rangeUpper: -1, parent: s})
 			} else {
-				s.childMap.LoadOrStore(fmt.Sprintf("%s - %s", addThousandsOperatorTrim(ranges[i]), addThousandsOperatorTrim(ranges[i+1])), &Stat{rangeLower: ranges[i], rangeUpper: ranges[i+1]})
+				s.childMap.LoadOrStore(fmt.Sprintf("%s - %s", addThousandsOperatorTrim(ranges[i]), addThousandsOperatorTrim(ranges[i+1])), &Stat{rangeLower: ranges[i], rangeUpper: ranges[i+1], parent: s})
 			}
 		}
 	}
