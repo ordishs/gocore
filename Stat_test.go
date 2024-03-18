@@ -1,6 +1,10 @@
 package gocore
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 // func TestNewStat(t *testing.T) {
 // 	now := time.Now().UTC()
@@ -46,4 +50,33 @@ func TestThousands(t *testing.T) {
 	s := addThousandsOperator(num)
 
 	t.Log(s)
+}
+
+func TestRanges(t *testing.T) {
+	s := RootStat.NewStatWithRanges("test", 100, 1_000, 10_000, 0)
+	st := CurrentTime()
+
+	_ = s.AddTimeForRange(st, 5)
+	_ = s.AddTimeForRange(st, 500)
+	_ = s.AddTimeForRange(st, 999)
+	_ = s.AddTimeForRange(st, 1_000)
+	_ = s.AddTimeForRange(st, 5_000_000)
+
+	s.childMap.Range(func(key, value interface{}) bool {
+		item := value.(*Stat)
+		t.Logf("%-14s: %s", key, addThousandsOperator(item.count))
+		return true
+	})
+
+	c, _ := s.childMap.Load("< 0")
+	assert.Equal(t, int64(0), c.(*Stat).count)
+
+	c, _ = s.childMap.Load("100 - 1,000")
+	assert.Equal(t, int64(2), c.(*Stat).count)
+
+	c, _ = s.childMap.Load("1,000 - 10,000")
+	assert.Equal(t, int64(1), c.(*Stat).count)
+
+	c, _ = s.childMap.Load(">= 10,000")
+	assert.Equal(t, int64(1), c.(*Stat).count)
 }

@@ -78,6 +78,8 @@ type Stat struct {
 	key                string
 	parent             *Stat
 	childMap           sync.Map
+	rangeLower         int
+	rangeUpper         int
 	ignoreChildUpdates bool
 	hideTotal          bool
 	firstDuration      time.Duration
@@ -102,6 +104,43 @@ func (s *Stat) NewStat(key string, options ...bool) *Stat {
 
 	if len(options) > 0 {
 		newStat.ignoreChildUpdates = options[0]
+	}
+
+	stat, loaded := s.childMap.LoadOrStore(key, newStat)
+	if loaded {
+		// If the stat was already in the map, it's returned as is.
+		return stat.(*Stat)
+	}
+
+	// If the stat was not in the map, the newly created stat is returned.
+	return newStat
+}
+
+func (s *Stat) NewStatWithRanges(key string, ranges ...int) *Stat {
+	newStat := &Stat{
+		key:    key,
+		parent: s,
+	}
+
+	if len(ranges) > 0 {
+		// sort the ranges
+		for i := 0; i < len(ranges); i++ {
+			for j := i + 1; j < len(ranges); j++ {
+				if ranges[i] > ranges[j] {
+					ranges[i], ranges[j] = ranges[j], ranges[i]
+				}
+			}
+		}
+
+		for i := 0; i < len(ranges); i++ {
+			if i == 0 {
+				newStat.childMap.LoadOrStore(fmt.Sprintf("< %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: 0, rangeUpper: ranges[i]})
+			} else if i == len(ranges)-1 {
+				newStat.childMap.LoadOrStore(fmt.Sprintf(">= %s", addThousandsOperatorTrim(ranges[i])), &Stat{rangeLower: ranges[i], rangeUpper: -1})
+			} else {
+				newStat.childMap.LoadOrStore(fmt.Sprintf("%s - %s", addThousandsOperatorTrim(ranges[i]), addThousandsOperatorTrim(ranges[i+1])), &Stat{rangeLower: ranges[i], rangeUpper: ranges[i+1]})
+			}
+		}
 	}
 
 	stat, loaded := s.childMap.LoadOrStore(key, newStat)
@@ -158,6 +197,29 @@ func (s *Stat) processTime(now time.Time, duration time.Duration) {
 	if s.parent != nil && !s.parent.ignoreChildUpdates {
 		s.parent.processTime(now, duration)
 	}
+}
+
+func (s *Stat) AddTimeForRange(startTime time.Time, sampleSize int) time.Time {
+	now := time.Now().UTC()
+
+	duration := now.Sub(startTime)
+
+	if duration < 0 {
+		log.Printf("%s: startTime is in the future", s.key)
+		return now
+	}
+
+	// Work out which bucket this time fits into
+	s.childMap.Range(func(_, child interface{}) bool {
+		if child.(*Stat).rangeLower <= sampleSize && (child.(*Stat).rangeUpper == -1 || sampleSize < child.(*Stat).rangeUpper) {
+			child.(*Stat).processTime(now, duration)
+			return false // Stop iterating
+		}
+
+		return true // Keep iterating
+	})
+
+	return now
 }
 
 // AddTime comment
@@ -501,6 +563,11 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 func addThousandsOperator(num int64) string {
 	p := message.NewPrinter(language.English)
 	return p.Sprintf("%d\n", num)
+}
+
+func addThousandsOperatorTrim(num int) string {
+	p := message.NewPrinter(language.English)
+	return p.Sprintf("%d", num)
 }
 
 func hasChildren(m *sync.Map) bool {
