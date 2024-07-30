@@ -116,7 +116,7 @@ func (s *Stat) NewStat(key string, options ...bool) *Stat {
 	return newStat
 }
 
-func (s *Stat) AddRanges(ranges ...int) {
+func (s *Stat) AddRanges(ranges ...int) *Stat {
 	if len(ranges) > 0 {
 		// sort the ranges
 		for i := 0; i < len(ranges); i++ {
@@ -138,6 +138,7 @@ func (s *Stat) AddRanges(ranges ...int) {
 			}
 		}
 	}
+	return s
 }
 
 func (s *Stat) HideTotal(b bool) {

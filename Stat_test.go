@@ -53,8 +53,7 @@ func TestThousands(t *testing.T) {
 }
 
 func TestRanges(t *testing.T) {
-	s := NewStat("test")
-	s.AddRanges(100, 1_000, 10_000, 0)
+	s := NewStat("test").AddRanges(100, 1_000, 10_000, 0)
 	st := CurrentTime()
 
 	_ = s.AddTimeForRange(st, 5)
