@@ -77,7 +77,8 @@ func processFile(m map[string]string, filename string) (string, error) {
 	if err != nil {
 		return filename, err
 	}
-	binaryDir := filepath.Dir(filepath.Dir(filepath.Dir(exePath))) // parent of the parent
+
+	binaryDir := filepath.Dir(exePath)
 
 	// Start looking in the binary's parent-parent directory
 	f, err := filepath.Abs(filepath.Join(binaryDir, filename))
