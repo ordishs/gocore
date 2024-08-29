@@ -72,22 +72,48 @@ func SetAddress(addr string) {
 }
 
 func processFile(m map[string]string, filename string) (string, error) {
-	f, err := filepath.Abs(filename)
+	// Get the directory of the application binary
+	exePath, err := os.Executable()
+	if err != nil {
+		return filename, err
+	}
+	binaryDir := filepath.Dir(filepath.Dir(filepath.Dir(exePath))) // parent of the parent
+
+	// Start looking in the binary's parent-parent directory
+	f, err := filepath.Abs(filepath.Join(binaryDir, filename))
 	if err != nil {
 		return filename, err
 	}
 	bytesRead, err := os.ReadFile(f)
 
+	// Try parent traversal logic
 	for err != nil && f != "/"+filename {
-
 		dir := filepath.Dir(f)
-		dir = filepath.Join(dir, "..")
-
+		dir = filepath.Join(dir, "..") // Go up two levels
 		f, err = filepath.Abs(filepath.Join(dir, filename))
 		if err != nil {
 			return "", err
 		}
 		bytesRead, err = os.ReadFile(f)
+	}
+
+	// If not found, start from the present working directory
+	if err != nil {
+		f, err = filepath.Abs(filename)
+		if err != nil {
+			return filename, err
+		}
+		bytesRead, err = os.ReadFile(f)
+
+		for err != nil && f != "/"+filename {
+			dir := filepath.Dir(f)
+			dir = filepath.Join(dir, "..")
+			f, err = filepath.Abs(filepath.Join(dir, filename))
+			if err != nil {
+				return "", err
+			}
+			bytesRead, err = os.ReadFile(f)
+		}
 	}
 
 	if err != nil {

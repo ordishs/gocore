@@ -276,7 +276,7 @@ func (l *Logger) Panicf(msg string, args ...interface{}) {
 	if l.conf.socket != nil {
 		l.conf.socket.Close()
 	}
-	log.Panicf(fmt.Sprintf(msg, args...))
+	log.Panicf(msg, args...)
 }
 
 func (l *Logger) output(ll logLevel, colour, msg string, args ...interface{}) {
@@ -363,11 +363,11 @@ func (l *Logger) loggingNecessary(ll logLevel) (bool, bool) {
 
 	print := ll >= l.conf.logLevel
 
-	if l.conf.trace.sockets != nil && len(l.conf.trace.sockets) > 0 {
+	if len(l.conf.trace.sockets) > 0 {
 		return print, false
 	}
 
-	if l.conf.samplers != nil && len(l.conf.samplers) > 0 {
+	if len(l.conf.samplers) > 0 {
 		return print, false
 	}
 

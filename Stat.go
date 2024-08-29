@@ -458,7 +458,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "</td>\r\n")
 	// 		// New button
 	fmt.Fprint(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")
-	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='"+statPrefix+"reset' method='get'>\r\n")
+	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='%sreset' method='get'>\r\n", statPrefix)
 	// 		// Using location.replace here so that the history buffer is not messed up for going back a page.
 	fmt.Fprintf(p, "<input type='button' value='Reset Statistics' onClick='window.location.replace(\"reset?key=%s\");'>\r\n", keysParam)
 	fmt.Fprintf(p, "</form>\r\n")

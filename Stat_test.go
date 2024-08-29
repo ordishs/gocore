@@ -53,10 +53,12 @@ func TestThousands(t *testing.T) {
 }
 
 func TestRanges(t *testing.T) {
-	s := NewStat("test").AddRanges(100, 1_000, 10_000, 0)
+	s := NewStat("test").AddRanges(0, 1, 100, 1_000, 10_000)
 	st := CurrentTime()
 
 	_ = s.AddTimeForRange(st, 5)
+	_ = s.AddTimeForRange(st, 0)
+	_ = s.AddTimeForRange(st, 0)
 	_ = s.AddTimeForRange(st, 500)
 	_ = s.AddTimeForRange(st, 999)
 	_ = s.AddTimeForRange(st, 1_000)
@@ -69,7 +71,10 @@ func TestRanges(t *testing.T) {
 	})
 	t.Logf("%-14s: %s", s.key, addThousandsOperator(s.count))
 
-	c, _ := s.childMap.Load("0 - 100")
+	c, _ := s.childMap.Load("0 - 1")
+	assert.Equal(t, int64(2), c.(*Stat).count)
+
+	c, _ = s.childMap.Load("1 - 100")
 	assert.Equal(t, int64(1), c.(*Stat).count)
 
 	c, _ = s.childMap.Load("100 - 1,000")
@@ -81,5 +86,5 @@ func TestRanges(t *testing.T) {
 	c, _ = s.childMap.Load("10,000 -")
 	assert.Equal(t, int64(1), c.(*Stat).count)
 
-	assert.Equal(t, int64(5), s.count)
+	assert.Equal(t, int64(7), s.count)
 }
