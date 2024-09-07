@@ -641,6 +641,13 @@ func (c *Configuration) Stats() string {
 	defer c.mu.RUnlock()
 
 	var builder strings.Builder
+	builder.WriteString("\nCMDLINE\n")
+	builder.WriteString("-------\n")
+
+	for i, arg := range os.Args {
+		builder.WriteString(fmt.Sprintf("%2d: %s\n", i, arg))
+	}
+
 	builder.WriteString("\nSETTINGS_ENV\n")
 	builder.WriteString("------------\n")
 	builder.WriteString("Context:     ")
