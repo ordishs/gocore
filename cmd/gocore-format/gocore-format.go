@@ -184,16 +184,27 @@ func writeSettings(w io.Writer, settings []*Setting) error {
 	isCompactGroup := false
 
 	for i, setting := range settings {
+		// Remove the blank line between settings in compact groups
+		if i > 0 && (!isCompactGroup || setting.Group != currentGroup) {
+			_, err := writer.WriteString("\n")
+			if err != nil {
+				return err
+			}
+		}
+
 		if setting.Group != currentGroup {
 			if currentGroup != "" {
-				// Remove the extra newline before # @endgroup for non-compact groups
-				if !isCompactGroup {
-					// Move the cursor back one character to overwrite the extra newline
-					writer.WriteString("\033[1A")
-				}
-				_, err := writer.WriteString("# @endgroup\n\n")
+				// End the previous group without an extra newline
+				_, err := writer.WriteString("# @endgroup\n")
 				if err != nil {
 					return err
+				}
+				// Add a newline after @endgroup only for non-compact groups
+				if !isCompactGroup {
+					_, err := writer.WriteString("\n")
+					if err != nil {
+						return err
+					}
 				}
 			}
 			if setting.Group != "" {
@@ -255,22 +266,10 @@ func writeSettings(w io.Writer, settings []*Setting) error {
 			}
 		}
 
-		if !isCompactGroup {
-			_, err := writer.WriteString("\n")
-			if err != nil {
-				return err
-			}
-		}
-
 		// Check if this is the last setting or if the next setting is in a different group
 		if i == len(settings)-1 || settings[i+1].Group != currentGroup {
 			if currentGroup != "" {
-				// Remove the extra newline before # @endgroup for non-compact groups
-				if !isCompactGroup {
-					// Move the cursor back one character to overwrite the extra newline
-					writer.WriteString("\033[1A")
-				}
-				_, err := writer.WriteString("# @endgroup\n\n")
+				_, err := writer.WriteString("# @endgroup\n")
 				if err != nil {
 					return err
 				}

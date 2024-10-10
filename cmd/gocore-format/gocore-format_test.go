@@ -48,7 +48,67 @@ c        = 3 # this is the default value
 c.dev    = 1
 # c.test = 2
 c.prod   = 3
+`, buf.String())
+}
 
+func TestGroups(t *testing.T) {
+	reader := strings.NewReader(`
+		a=2
+		# @group: S1 compact
+		A=1
+		C=3
+		B=2
+
+		E=5
+		D=4
+		# @endgroup
+
+		#The following section is c
+		# @group: c
+		c=0 #this is the default value
+		c.dev=1
+		#c.test=2 # This is not used at the moment
+		c.prod=3
+		something.else.c = 19
+		# @endgroup
+
+		b.c = 10
+		b.d = 11
+	`)
+
+	settings, err := readSettings(reader)
+	require.NoError(t, err)
+
+	sortSettings(settings)
+
+	// Write settings to a string buffer
+	buf := &bytes.Buffer{}
+	err = writeSettings(buf, settings)
+	require.NoError(t, err)
+
+	assert.Equal(t, 9, len(settings))
+	assert.Equal(t, `# @group: S1 compact
+A = 1
+B = 2
+C = 3
+D = 4
+E = 5
+# @endgroup
+
+a = 2
+
+b.c = 10
+b.d = 11
+
+# @group: c
+# The following section is c
+c        = 0 # this is the default value
+c.dev    = 1
+# c.test = 2 # This is not used at the moment
+c.prod   = 3
+
+something.else.c = 19
+# @endgroup
 `, buf.String())
 }
 
