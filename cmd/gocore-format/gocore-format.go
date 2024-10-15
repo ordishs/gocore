@@ -135,7 +135,7 @@ func readSettings(r io.Reader) ([]*Setting, error) {
 			if pendingSectionComment == "" {
 				pendingSectionComment = line
 			} else {
-				pendingSectionComment += "\n" + line
+				pendingSectionComment += "\n# " + line
 			}
 		} else {
 			rootKey := strings.Split(item.Key, ".")[0]
