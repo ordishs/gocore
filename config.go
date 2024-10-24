@@ -441,8 +441,8 @@ func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 
 // Get (key, defaultValue)
 func (c *Configuration) getInternal(key string, defaultValue ...string) (string, bool, string) {
-	env := os.Getenv(key)
-	if env != "" {
+	env, ok := os.LookupEnv(key)
+	if ok {
 		return c.decrypt(env), true, "ENV"
 	}
 

@@ -1,6 +1,7 @@
 package gocore
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -196,6 +197,16 @@ func TestEmpty(t *testing.T) {
 func TestMissing(t *testing.T) {
 	val, found := Config().Get("missing")
 	assert.False(t, found)
+	assert.Equal(t, "", val)
+}
+
+func TestEmptyEnvOverride(t *testing.T) {
+	os.Setenv("city", "")
+	city := os.Getenv("city")
+	assert.Equal(t, "", city)
+
+	val, found := Config().Get("city")
+	assert.True(t, found)
 	assert.Equal(t, "", val)
 }
 
