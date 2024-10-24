@@ -12,12 +12,13 @@ import (
 )
 
 type Setting struct {
-	Key      string
-	Group    string
-	SortBy   string
-	Comments string
-	Variants []Variant
-	Compact  bool
+	Key          string
+	Group        string
+	SortBy       string
+	Comments     string
+	Variants     []Variant
+	Compact      bool
+	MaxKeyLength int
 }
 
 type Variant struct {
@@ -97,6 +98,7 @@ func readSettings(r io.Reader) ([]*Setting, error) {
 	var pendingSectionComment string
 	var currentGroup string
 	var isCompactGroup bool
+	var maxKeyLength int // Track the maximum key length for compact groups
 
 	settings := make(map[string]*Setting)
 
@@ -116,11 +118,21 @@ func readSettings(r io.Reader) ([]*Setting, error) {
 			isCompactGroup = strings.HasSuffix(currentGroup, " compact")
 			if isCompactGroup {
 				currentGroup = strings.TrimSuffix(currentGroup, " compact")
+				maxKeyLength = 0 // Reset max key length for new compact group
 			}
 			continue
 		}
 
 		if line == "# @endgroup" {
+			if isCompactGroup {
+				// Store the max key length in the settings for the compact group
+				for _, setting := range settings {
+					if setting.Group == currentGroup {
+						setting.Compact = true
+						setting.MaxKeyLength = maxKeyLength
+					}
+				}
+			}
 			currentGroup = ""
 			isCompactGroup = false
 			continue
@@ -159,6 +171,16 @@ func readSettings(r io.Reader) ([]*Setting, error) {
 			}
 
 			setting.Variants = append(setting.Variants, *item)
+
+			if isCompactGroup {
+				keyLength := len(item.Key)
+				if item.Commented {
+					keyLength += 2
+				}
+				if keyLength > maxKeyLength {
+					maxKeyLength = keyLength
+				}
+			}
 
 			settings[rootKey] = setting
 		}
@@ -230,15 +252,19 @@ func writeSettings(w io.Writer, settings []*Setting) error {
 
 		maxKeyLength := 0
 
-		for _, variant := range setting.Variants {
+		if isCompactGroup {
+			maxKeyLength = setting.MaxKeyLength
+		} else {
+			for _, variant := range setting.Variants {
 
-			l := len(variant.Key)
-			if variant.Commented {
-				l += 2
-			}
+				l := len(variant.Key)
+				if variant.Commented {
+					l += 2
+				}
 
-			if l > maxKeyLength {
-				maxKeyLength = l
+				if l > maxKeyLength {
+					maxKeyLength = l
+				}
 			}
 		}
 
