@@ -17,6 +17,27 @@ func TestCleanMultiValues(t *testing.T) {
 	assert.Equal(t, "1 | 2 | 3", cleaned)
 }
 
+func TestEmptyValues(t *testing.T) {
+	reader := strings.NewReader(`
+		a=
+		a.dev= #Comment
+	`)
+
+	settings, err := readSettings(reader)
+	require.NoError(t, err)
+
+	sortSettings(settings)
+
+	// Write settings to a string buffer
+	buf := &bytes.Buffer{}
+	err = writeSettings(buf, settings)
+	require.NoError(t, err)
+
+	assert.Equal(t, `a     =
+a.dev = # Comment
+`, buf.String())
+}
+
 func TestComments(t *testing.T) {
 	reader := strings.NewReader(`
 		a=2

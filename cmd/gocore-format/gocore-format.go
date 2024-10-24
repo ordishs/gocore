@@ -254,13 +254,21 @@ func writeSettings(w io.Writer, settings []*Setting) error {
 
 			value := cleanMultiValues(variant.Value)
 
-			line := fmt.Sprintf("%s%-*s = %s", prefix, length, variant.Key, value)
+			var line strings.Builder
 
-			if variant.Comment != "" {
-				line += " # " + variant.Comment
+			line.WriteString(fmt.Sprintf("%s%-*s =", prefix, length, variant.Key))
+
+			if len(value) > 0 {
+				line.WriteString(" " + value)
 			}
 
-			_, err := writer.WriteString(line + "\n")
+			if variant.Comment != "" {
+				line.WriteString(" # " + variant.Comment)
+			}
+
+			line.WriteString("\n")
+
+			_, err := writer.WriteString(line.String())
 			if err != nil {
 				return err
 			}
