@@ -506,24 +506,240 @@ func (c *Configuration) GetMulti(key string, sep string, defaultValue ...[]strin
 	return items, ok
 }
 
-// GetInt comment
-func (c *Configuration) GetInt(key string, defaultValue ...int) (int, bool) {
+// number is used internally as a type constraint for numeric types
+type number interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~float32 | ~float64
+}
+
+// getNumber is a generic function to handle numeric type conversions
+func getNumber[T number](c *Configuration, key string, defaultValue ...T) (T, bool, error) {
 	str, ok := c.Get(key)
 	if str == "" || !ok {
 		if len(defaultValue) > 0 {
-			return defaultValue[0], false
+			return defaultValue[0], false, nil
 		}
-		return 0, false
+		var zero T
+		return zero, false, nil
 	}
 
-	i, err := strconv.Atoi(str)
-	if err != nil {
-		return 0, false
+	var result T
+	var err error
+
+	switch any(result).(type) {
+	case int:
+		val, e := strconv.ParseInt(str, 10, 64)
+		err = e
+		result = T(val)
+	case int8:
+		val, e := strconv.ParseInt(str, 10, 8)
+		err = e
+		result = T(val)
+	case int16:
+		val, e := strconv.ParseInt(str, 10, 16)
+		err = e
+		result = T(val)
+	case int32:
+		val, e := strconv.ParseInt(str, 10, 32)
+		err = e
+		result = T(val)
+	case int64:
+		val, e := strconv.ParseInt(str, 10, 64)
+		err = e
+		result = T(val)
+	case uint:
+		val, e := strconv.ParseUint(str, 10, 64)
+		err = e
+		result = T(val)
+	case uint8:
+		val, e := strconv.ParseUint(str, 10, 8)
+		err = e
+		result = T(val)
+	case uint16:
+		val, e := strconv.ParseUint(str, 10, 16)
+		err = e
+		result = T(val)
+	case uint32:
+		val, e := strconv.ParseUint(str, 10, 32)
+		err = e
+		result = T(val)
+	case uint64:
+		val, e := strconv.ParseUint(str, 10, 64)
+		err = e
+		result = T(val)
+	case float32:
+		val, e := strconv.ParseFloat(str, 32)
+		err = e
+		result = T(val)
+	case float64:
+		val, e := strconv.ParseFloat(str, 64)
+		err = e
+		result = T(val)
 	}
-	return i, ok
+
+	if err != nil {
+		var zero T
+		return zero, true, fmt.Errorf("failed to parse %q as %T: %w", str, zero, err)
+	}
+
+	return result, true, nil
 }
 
-// GetBool comment
+func (c *Configuration) TryGetInt(key string, defaultValue ...int) (int, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetInt(key string, defaultValue ...int) (int, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetInt8(key string, defaultValue ...int8) (int8, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetInt8(key string, defaultValue ...int8) (int8, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetInt16(key string, defaultValue ...int16) (int16, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetInt16(key string, defaultValue ...int16) (int16, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetInt32(key string, defaultValue ...int32) (int32, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetInt32(key string, defaultValue ...int32) (int32, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetInt64(key string, defaultValue ...int64) (int64, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetInt64(key string, defaultValue ...int64) (int64, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetUint(key string, defaultValue ...uint) (uint, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetUint(key string, defaultValue ...uint) (uint, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetUint8(key string, defaultValue ...uint8) (uint8, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetUint8(key string, defaultValue ...uint8) (uint8, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetUint16(key string, defaultValue ...uint16) (uint16, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetUint16(key string, defaultValue ...uint16) (uint16, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetUint32(key string, defaultValue ...uint32) (uint32, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetUint32(key string, defaultValue ...uint32) (uint32, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetUint64(key string, defaultValue ...uint64) (uint64, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetUint64(key string, defaultValue ...uint64) (uint64, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetFloat32(key string, defaultValue ...float32) (float32, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetFloat32(key string, defaultValue ...float32) (float32, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
+func (c *Configuration) TryGetFloat64(key string, defaultValue ...float64) (float64, bool, error) {
+	return getNumber(c, key, defaultValue...)
+}
+
+func (c *Configuration) GetFloat64(key string, defaultValue ...float64) (float64, bool) {
+	n, found, err := getNumber(c, key, defaultValue...)
+	if err != nil {
+		return n, false
+	}
+
+	return n, found
+}
+
 func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
 	str, ok := c.Get(key)
 	if str == "" || !ok {
@@ -537,6 +753,7 @@ func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
 	if err != nil {
 		return false
 	}
+
 	return i
 }
 

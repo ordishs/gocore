@@ -210,6 +210,23 @@ func TestEmptyEnvOverride(t *testing.T) {
 	assert.Equal(t, "", val)
 }
 
+func TestGetUint(t *testing.T) {
+	val, found := Config().GetUint("number")
+	assert.True(t, found)
+	assert.Equal(t, uint(5042), val)
+}
+
+func TestGetUint8(t *testing.T) {
+	val, found := Config().GetUint8("number")
+	assert.False(t, found)
+	assert.Equal(t, uint8(0), val)
+
+	val, found, err := Config().TryGetUint8("number")
+	assert.Error(t, err)
+	assert.True(t, found)
+	assert.Equal(t, uint8(0), val)
+}
+
 // func TestApplication(t *testing.T) {
 // 	val, found := Config().Get("app")
 // 	assert.True(t, found)
