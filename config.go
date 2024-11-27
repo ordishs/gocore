@@ -598,7 +598,12 @@ func (c *Configuration) GetAll() map[string]string {
 	m["_SETTINGS_CONTEXT"] = c.context
 
 	for k, v := range c.confs {
-		m[k] = v
+		// Check if the key has a value in the environment
+		if envVal, ok := os.LookupEnv(k); ok {
+			m[k] = envVal
+		} else {
+			m[k] = v
+		}
 	}
 
 	return m
