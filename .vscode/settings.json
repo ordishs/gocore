@@ -26,5 +26,6 @@
     "tbody",
     "thead",
     "Warnf"
-  ]
+  ],
+  "makefile.configureOnOpen": false
 }

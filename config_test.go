@@ -194,6 +194,21 @@ func TestEmpty(t *testing.T) {
 	assert.Equal(t, "", val)
 }
 
+func TestAlternativeContext(t *testing.T) {
+	cSpecial := Config("special")
+	assert.Equal(t, "special", cSpecial.context)
+
+	v1, found := Config("special").Get("city")
+	assert.True(t, found)
+	assert.Equal(t, "Madrid", v1)
+	c := Config()
+	assert.Equal(t, os.Getenv("SETTINGS_CONTEXT"), c.context)
+
+	v, found := c.Get("city")
+	assert.True(t, found)
+	assert.Equal(t, "Paris", v)
+}
+
 func TestMissing(t *testing.T) {
 	val, found := Config().Get("missing")
 	assert.False(t, found)

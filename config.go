@@ -34,8 +34,10 @@ type Configuration struct {
 }
 
 var (
-	c                   *Configuration
+	c                   *Configuration // This is the default config
 	once                sync.Once
+	alternativeConfigs  map[string]*Configuration
+	configsMu           sync.RWMutex
 	packageName         atomic.Value
 	address             atomic.Value
 	version             atomic.Value
@@ -46,6 +48,7 @@ var (
 
 func init() {
 	packageName.Store("gocore")
+	alternativeConfigs = make(map[string]*Configuration)
 }
 
 func AddAppPayloadFn(key string, fn func() interface{}) {
@@ -151,8 +154,8 @@ func processFile(m map[string]string, filename string) (string, error) {
 	return f, nil
 }
 
-// Config comment
-func Config() *Configuration {
+// Config returns a Configuration object
+func Config(alternativeContext ...string) *Configuration {
 	once.Do(func() {
 		// Before processing settings, use dotenv to load any environment variables .env file
 
@@ -357,6 +360,46 @@ func Config() *Configuration {
 			}()
 		}
 	})
+
+	if len(alternativeContext) > 0 && alternativeContext[0] != "" && alternativeContext[0] != c.context {
+		// We have an alternative context and will return a modified copy
+		// unless it is already in the map
+
+		// Removed the channel wait here
+		configsMu.RLock()
+		ac, found := alternativeConfigs[alternativeContext[0]]
+		configsMu.RUnlock()
+
+		if found {
+			return ac
+		}
+
+		configsMu.Lock()
+		defer configsMu.Unlock()
+
+		// Double check the config isn't already in the map
+		if ac, found := alternativeConfigs[alternativeContext[0]]; found {
+			return ac
+		}
+
+		ac = new(Configuration)
+		ac.mu.Lock()
+		defer ac.mu.Unlock()
+
+		ac.context = alternativeContext[0]
+		ac.app = c.app
+		// Copy the confs
+		ac.confs = make(map[string]string)
+		for k, v := range c.confs {
+			ac.confs[k] = v
+		}
+
+		ac.requests = make(map[string]string)
+
+		alternativeConfigs[alternativeContext[0]] = ac
+
+		return ac
+	}
 
 	return c
 }
