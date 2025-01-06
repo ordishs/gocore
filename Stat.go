@@ -23,8 +23,11 @@ var (
 	embeddedFS embed.FS
 
 	statPrefix string
-	initTime   = time.Now().UTC()
-	RootStat   = &Stat{
+
+	registerOnce sync.Once
+
+	initTime = time.Now().UTC()
+	RootStat = &Stat{
 		key:                "root",
 		ignoreChildUpdates: true,
 	}
@@ -277,10 +280,13 @@ func average(totalDuration time.Duration, count int64) time.Duration {
 // }
 
 func RegisterStatsHandlers() {
-	http.HandleFunc(statPrefix+"stats", HandleStats)
-	http.HandleFunc(statPrefix+"reset", ResetStats)
-	http.HandleFunc(statPrefix+"", HandleOther)
+	registerOnce.Do(func() {
+		http.HandleFunc(statPrefix+"stats", HandleStats)
+		http.HandleFunc(statPrefix+"reset", ResetStats)
+		http.HandleFunc(statPrefix+"", HandleOther)
+	})
 }
+
 func StartStatsServer(addr string) {
 	logger := Log("stats")
 
