@@ -630,10 +630,7 @@ func (q *lockFreeQueue) dequeue() *statItem {
 		return nil
 	}
 
-	if next != nil {
-		q.tail = next
-	}
-
+	q.tail = next
 	q.previousTail = next
 	q.queueLength.Add(-1)
 	return next
