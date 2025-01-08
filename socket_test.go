@@ -30,9 +30,14 @@ func (b *BufferWithClose) Read(p []byte) (n int, err error) {
 	return b.Buffer.Read(p)
 }
 
+func (b *BufferWithClose) Reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.Buffer.Reset()
+}
+
 func TestHandleConfig(t *testing.T) {
 	buf := &BufferWithClose{Buffer: &bytes.Buffer{}}
-
 	socketHandler := NewSocketHandler(Log("test"), buf)
 
 	tests := []struct {
@@ -59,24 +64,20 @@ func TestHandleConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var wg sync.WaitGroup
-			wg.Add(1)
+			buf.Reset()
 
-			var result string
-			go func() {
-				defer wg.Done()
-				b := make([]byte, 1024)
-				n, err := buf.Read(b)
-				if err != nil && err != io.EOF {
-					t.Errorf("unexpected error reading buffer: %v", err)
-					return
-				}
-				result = string(b[:n])
-			}()
-
+			// Write to the buffer first
 			socketHandler.handleConfig(tt.args)
-			wg.Wait()
 
+			// Then read the result
+			b := make([]byte, 1024)
+			n, err := buf.Read(b)
+			if err != nil && err != io.EOF {
+				t.Errorf("unexpected error reading buffer: %v", err)
+				return
+			}
+
+			result := string(b[:n])
 			assert.Equal(t, tt.want, result, tt.name)
 		})
 	}
