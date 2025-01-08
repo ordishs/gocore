@@ -1,6 +1,7 @@
 package gocore
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -249,3 +250,103 @@ func TestGetUint8(t *testing.T) {
 
 // 	t.Log(Config().Stats())
 // }
+
+type mockListener struct {
+	ch chan string
+}
+
+func newMockListener(bufferSize int) *mockListener {
+	return &mockListener{
+		ch: make(chan string, bufferSize),
+	}
+}
+
+func (m *mockListener) UpdateSetting(key, value string) {
+	select {
+	case m.ch <- fmt.Sprintf("%s=%s", key, value):
+	default:
+		// Channel is full or closed, don't block
+	}
+}
+
+func TestListener(t *testing.T) {
+	t.Run("basic listener functionality", func(t *testing.T) {
+		listener := newMockListener(1)
+		Config().AddListener(listener)
+		defer func() {
+			Config().RemoveListener(listener)
+			close(listener.ch)
+		}()
+
+		Config().Set("key1", "value1")
+		
+		select {
+		case val := <-listener.ch:
+			assert.Equal(t, "key1=value1", val)
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for listener update")
+		}
+	})
+
+	t.Run("multiple updates", func(t *testing.T) {
+		listener := newMockListener(2)
+		Config().AddListener(listener)
+		defer func() {
+			Config().RemoveListener(listener)
+			close(listener.ch)
+		}()
+
+		Config().Set("key1", "value1")
+		Config().Set("key2", "value2")
+
+		expected := []string{"key1=value1", "key2=value2"}
+		for i, want := range expected {
+			select {
+			case got := <-listener.ch:
+				assert.Equal(t, want, got, "update %d", i+1)
+			case <-time.After(time.Second):
+				t.Fatalf("timeout waiting for update %d", i+1)
+			}
+		}
+	})
+
+	t.Run("removed listener receives no updates", func(t *testing.T) {
+		listener := newMockListener(1)
+		Config().AddListener(listener)
+		Config().RemoveListener(listener)
+		close(listener.ch)
+
+		Config().Set("key", "value")
+
+		select {
+		case val, ok := <-listener.ch:
+			if ok {
+				t.Errorf("removed listener received update: %s", val)
+			}
+		default:
+			// Expected - no updates should be received
+		}
+	})
+
+	t.Run("full channel doesn't block", func(t *testing.T) {
+		listener := newMockListener(1)
+		Config().AddListener(listener)
+		defer func() {
+			Config().RemoveListener(listener)
+			close(listener.ch)
+		}()
+
+		// Fill the channel
+		Config().Set("key1", "value1")
+		// This should not block even though channel is full
+		Config().Set("key2", "value2")
+
+		// Should receive at least the first update
+		select {
+		case val := <-listener.ch:
+			assert.Equal(t, "key1=value1", val)
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for listener update")
+		}
+	})
+}

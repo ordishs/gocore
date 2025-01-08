@@ -25,12 +25,14 @@ import (
 
 // Configuration comment
 type Configuration struct {
-	confs    map[string]string
-	context  string
-	app      string
-	requests map[string]string
-	rmu      sync.RWMutex
-	mu       sync.RWMutex
+	confs      map[string]string
+	context    string
+	app        string
+	requests   map[string]string
+	rmu        sync.RWMutex
+	mu         sync.RWMutex
+	listeners  []SettingsListener
+	listenerMu sync.RWMutex
 }
 
 var (
@@ -209,6 +211,19 @@ func Config(alternativeContext ...string) *Configuration {
 			}
 		}
 
+		// // Load infrastructure settings
+		// infraFilename, err := processFile(c.confs, "settings_infra.conf")
+		// if err != nil {
+		// 	if os.IsNotExist(err) {
+		// 		infraFilename = "NOT FOUND"
+		// 		log.Println("WARN: No infrastructure config file 'settings_infra.conf'")
+		// 	} else {
+		// 		log.Printf("FATAL: Failed to read infrastructure config file '%s' - [%v]", infraFilename, err)
+		// 		os.Exit(1)
+		// 	}
+		// }
+
+		// Load local overrides last
 		localFilename, err := processFile(c.confs, "settings_local.conf")
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -278,14 +293,15 @@ func Config(alternativeContext ...string) *Configuration {
 				ticker := time.NewTicker(interval)
 
 				type payload struct {
-					Executable        string                 `json:"executable"`
-					ServiceName       string                 `json:"serviceName"`
-					Loggers           []string               `json:"loggers"`
-					Version           string                 `json:"version"`
-					Commit            string                 `json:"commit"`
-					Context           string                 `json:"context"`
-					Application       string                 `json:"application"`
-					SettingsFile      string                 `json:"settingsFile"`
+					Executable   string   `json:"executable"`
+					ServiceName  string   `json:"serviceName"`
+					Loggers      []string `json:"loggers"`
+					Version      string   `json:"version"`
+					Commit       string   `json:"commit"`
+					Context      string   `json:"context"`
+					Application  string   `json:"application"`
+					SettingsFile string   `json:"settingsFile"`
+					// InfraSettingsFile string                 `json:"infraSettingsFile"`
 					LocalSettingsFile string                 `json:"localSettingsFile"`
 					Host              string                 `json:"host"`
 					Address           string                 `json:"address"`
@@ -338,10 +354,11 @@ func Config(alternativeContext ...string) *Configuration {
 						Application:       app,
 						SettingsFile:      filename,
 						LocalSettingsFile: localFilename,
-						Host:              host,
-						Address:           addressStr,
-						StartTime:         startTime,
-						AppPayload:        appPayloads,
+						// InfraSettingsFile: infraFilename,
+						Host:       host,
+						Address:    addressStr,
+						StartTime:  startTime,
+						AppPayload: appPayloads,
 					})
 
 					if err != nil {
@@ -442,6 +459,12 @@ func postJSON(urlStr string, j []byte) (string, error) {
 	return string(body), err
 }
 
+// SettingsListener is an interface that must be implemented by any component
+// that wants to be notified of settings changes
+type SettingsListener interface {
+	UpdateSetting(key string, value string)
+}
+
 // Set an item in the config
 func (c *Configuration) Set(key string, value string) string {
 	c.mu.Lock()
@@ -449,6 +472,14 @@ func (c *Configuration) Set(key string, value string) string {
 
 	oldValue := c.confs[key]
 	c.confs[key] = value
+
+	// Notify all listeners of the change
+	c.listenerMu.RLock()
+	for _, listener := range c.listeners {
+		listener.UpdateSetting(key, value)
+	}
+	c.listenerMu.RUnlock()
+
 	return oldValue
 }
 
@@ -459,6 +490,14 @@ func (c *Configuration) Unset(key string) string {
 
 	oldValue := c.confs[key]
 	delete(c.confs, key)
+
+	// Notify all listeners that the setting was removed
+	c.listenerMu.RLock()
+	for _, listener := range c.listeners {
+		listener.UpdateSetting(key, "")
+	}
+	c.listenerMu.RUnlock()
+
 	return oldValue
 }
 
@@ -967,4 +1006,23 @@ func (c *Configuration) Stats() string {
 // Get context
 func (c *Configuration) GetContext() string {
 	return c.context
+}
+
+func (c *Configuration) AddListener(listener SettingsListener) {
+	c.listenerMu.Lock()
+	defer c.listenerMu.Unlock()
+
+	c.listeners = append(c.listeners, listener)
+}
+
+func (c *Configuration) RemoveListener(listener SettingsListener) {
+	c.listenerMu.Lock()
+	defer c.listenerMu.Unlock()
+
+	for i, l := range c.listeners {
+		if l == listener {
+			c.listeners = append(c.listeners[:i], c.listeners[i+1:]...)
+			return
+		}
+	}
 }
