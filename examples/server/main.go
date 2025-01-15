@@ -8,6 +8,12 @@ import (
 	"github.com/ordishs/gocore"
 )
 
+type lis struct{}
+
+func (l *lis) UpdateSetting(key string, value string) {
+	fmt.Printf("UpdateSetting: %s = %s\n", key, value)
+}
+
 func main() {
 	s := gocore.NewStat("something")
 	s.AddTime(time.Now().UTC())
@@ -42,6 +48,21 @@ func main() {
 			h.AddTime(start)
 		}
 	}()
-	gocore.StartStatsServer("localhost:9001")
 
+	var startP2P = gocore.Config().GetBool("start_p2p", false)
+
+	go func() {
+		for {
+			time.Sleep(time.Second)
+
+			setting, _ := gocore.Config().Get("setting")
+			fmt.Printf("start_p2p = %v, setting = %q\n", startP2P, setting)
+		}
+	}()
+
+	listener := lis{}
+
+	gocore.Config().AddListener(&listener)
+
+	gocore.StartStatsServer("localhost:9001")
 }

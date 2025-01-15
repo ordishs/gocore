@@ -210,6 +210,18 @@ func TestAlternativeContext(t *testing.T) {
 	assert.Equal(t, "Paris", v)
 }
 
+func TestDynamicVariables(t *testing.T) {
+	v1, found := Config().Get("embedded")
+	assert.True(t, found)
+	assert.Equal(t, "Simon lives in Paris", v1)
+
+	Config().Set("city", "London")
+
+	v2, found := Config().Get("embedded")
+	assert.True(t, found)
+	assert.Equal(t, "Simon lives in London", v2)
+}
+
 func TestMissing(t *testing.T) {
 	val, found := Config().Get("missing")
 	assert.False(t, found)
@@ -279,7 +291,7 @@ func TestListener(t *testing.T) {
 		}()
 
 		Config().Set("key1", "value1")
-		
+
 		select {
 		case val := <-listener.ch:
 			assert.Equal(t, "key1=value1", val)

@@ -235,38 +235,6 @@ func Config(alternativeContext ...string) *Configuration {
 			}
 		}
 
-		// Now match each value by a regex \$\{.*\} and substitute the value of the variable
-		// with the value in the map.
-		//
-		// For example, if the map contains:
-		//   "port" : "8080"
-		// and the value is:
-		//   "http://localhost:${port}/api"
-		// then the value will be substituted with:
-		//   "http://localhost:8080/api"
-		//
-
-		re := regexp.MustCompile(`(\$\{.*?\})`)
-
-		for k, v := range c.confs {
-			for {
-				matches := re.FindAllString(v, -1)
-				if len(matches) == 0 {
-					break // No more tokens to replace
-				}
-				for _, match := range matches {
-					key := match[2 : len(match)-1]
-					val, ok := c.Get(key)
-					if ok {
-						v = strings.Replace(v, match, val, 1)
-					} else {
-						v = strings.Replace(v, match, "{UNKNOWN}", 1)
-					}
-				}
-			}
-			c.confs[k] = v
-		}
-
 		advertisingURL, _ := c.Get("advertisingURL")
 
 		if advertisingURL != "" {
@@ -510,6 +478,26 @@ func (c *Configuration) decrypt(val string) string {
 	return s
 }
 
+func (c *Configuration) replaceVariables(value string) string {
+	re := regexp.MustCompile(`(\$\{.*?\})`)
+	for {
+		matches := re.FindAllString(value, -1)
+		if len(matches) == 0 {
+			break // No more tokens to replace
+		}
+		for _, match := range matches {
+			key := match[2 : len(match)-1]
+			val, ok := c.Get(key)
+			if ok {
+				value = strings.Replace(value, match, val, 1)
+			} else {
+				value = strings.Replace(value, match, "{UNKNOWN}", 1)
+			}
+		}
+	}
+	return value
+}
+
 func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 	s, ok, _ := c.getInternal(key, defaultValue...)
 	val := strings.TrimPrefix(s, "*EHE*")
@@ -530,12 +518,18 @@ func (c *Configuration) getInternal(key string, defaultValue ...string) (string,
 
 	ret, ok, keyUsed := c.findValue(key)
 	if ok {
+		// Replace variables in the value
+		ret = c.replaceVariables(ret)
+
 		return c.decrypt(ret), ok, keyUsed
 	}
 
 	if len(defaultValue) > 0 {
 		ret = defaultValue[0]
 	}
+
+	// Replace variables in the value
+	ret = c.replaceVariables(ret)
 
 	return c.decrypt(ret), false, "DEFAULT"
 }

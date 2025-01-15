@@ -7,6 +7,20 @@ import (
 )
 
 func main() {
+	stats := gocore.Config().Stats()
+
+	fmt.Printf("STATS\n%s\n\n\n", stats)
+
+	v, _ := gocore.Config().Get("embedded")
+	fmt.Printf("embedded: %s\n", v)
+
+	gocore.Config().Set("name", "bob")
+
+	v, _ = gocore.Config().Get("embedded")
+	fmt.Printf("embedded: %s\n", v)
+
+	v, _ = gocore.Config().Get("embedded2")
+	fmt.Printf("embedded2: %s\n", v)
 
 	val, ok := gocore.Config().Get("key0")
 	fmt.Printf("key0 (no default): %s, %v\n", val, ok)
