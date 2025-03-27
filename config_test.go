@@ -238,6 +238,22 @@ func TestEmptyEnvOverride(t *testing.T) {
 	assert.Equal(t, "", val)
 }
 
+func TestEnvWithVariables(t *testing.T) {
+	os.Setenv("city", "New York ${address}")
+	city := os.Getenv("city")
+	assert.Equal(t, "New York ${address}", city)
+
+	val, found := Config().Get("city")
+	assert.True(t, found)
+	assert.Equal(t, "New York 1 The Main Street", val)
+
+	os.Setenv("address", "2 The Main Street")
+
+	val, found = Config().Get("city")
+	assert.True(t, found)
+	assert.Equal(t, "New York 2 The Main Street", val)
+}
+
 func TestGetUint(t *testing.T) {
 	val, found := Config().GetUint("number")
 	assert.True(t, found)

@@ -513,6 +513,9 @@ func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
 func (c *Configuration) getInternal(key string, defaultValue ...string) (string, bool, string) {
 	env, ok := os.LookupEnv(key)
 	if ok {
+		// Replace variables in the value
+		env = c.replaceVariables(env)
+
 		return c.decrypt(env), true, "ENV"
 	}
 
