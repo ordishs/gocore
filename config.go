@@ -76,6 +76,42 @@ func SetAddress(addr string) {
 	address.Store(addr)
 }
 
+func GetPackageName() string {
+	p, ok := packageName.Load().(string)
+	if !ok {
+		return "Unknown"
+	}
+
+	return p
+}
+
+func GetVersion() string {
+	v, ok := version.Load().(string)
+	if !ok {
+		return "Unknown"
+	}
+
+	return v
+}
+
+func GetCommit() string {
+	c, ok := commit.Load().(string)
+	if !ok {
+		return "Unknown"
+	}
+
+	return c
+}
+
+func GetAddress() string {
+	a, ok := address.Load().(string)
+	if !ok {
+		return "Unknown"
+	}
+
+	return a
+}
+
 func processFile(m map[string]string, filename string) (string, error) {
 	// Get the directory of the application binary
 	exePath, err := os.Executable()

@@ -252,6 +252,13 @@ func TestEnvWithVariables(t *testing.T) {
 	val, found = Config().Get("city")
 	assert.True(t, found)
 	assert.Equal(t, "New York 2 The Main Street", val)
+
+	os.Setenv("first", "Simon")
+	os.Setenv("last", "Ordish")
+	os.Setenv("fullname", "${first} ${last}")
+	val, found = Config().Get("fullname")
+	assert.True(t, found)
+	assert.Equal(t, "Simon Ordish", val)
 }
 
 func TestGetUint(t *testing.T) {
@@ -377,4 +384,11 @@ func TestListener(t *testing.T) {
 			t.Fatal("timeout waiting for listener update")
 		}
 	})
+}
+
+func TestInfo(t *testing.T) {
+	SetInfo("test", "1.0.0", "1234567890")
+	assert.Equal(t, "test", GetPackageName())
+	assert.Equal(t, "1.0.0", GetVersion())
+	assert.Equal(t, "1234567890", GetCommit())
 }
