@@ -392,3 +392,9 @@ func TestInfo(t *testing.T) {
 	assert.Equal(t, "1.0.0", GetVersion())
 	assert.Equal(t, "1234567890", GetCommit())
 }
+
+func TestTestConfig(t *testing.T) {
+	v, found := Config().Get("setting")
+	assert.True(t, found)
+	assert.Equal(t, "test", v)
+}

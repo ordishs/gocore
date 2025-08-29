@@ -126,6 +126,7 @@ func processFile(m map[string]string, filename string) (string, error) {
 	if err != nil {
 		return filename, err
 	}
+
 	bytesRead, err := os.ReadFile(f)
 
 	// Try parent traversal logic
@@ -136,6 +137,7 @@ func processFile(m map[string]string, filename string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		bytesRead, err = os.ReadFile(f)
 	}
 
@@ -259,6 +261,13 @@ func Config(alternativeContext ...string) *Configuration {
 		// 	}
 		// }
 
+		// Load settings_test.conf, if it exists. If not, it's not a problem.
+		testFilename, err := processFile(c.confs, "settings_test.conf")
+		if err == nil {
+			// There was a settings_test.conf loaded.  Log the filename...
+			logInfof("INFO: Loaded test config file '%s'", testFilename)
+		}
+
 		// Load local overrides last
 		localFilename, err := processFile(c.confs, "settings_local.conf")
 		if err != nil {
@@ -306,6 +315,7 @@ func Config(alternativeContext ...string) *Configuration {
 					Application  string   `json:"application"`
 					SettingsFile string   `json:"settingsFile"`
 					// InfraSettingsFile string                 `json:"infraSettingsFile"`
+					TestSettingsFile  string                 `json:"testSettingsFile"`
 					LocalSettingsFile string                 `json:"localSettingsFile"`
 					Host              string                 `json:"host"`
 					Address           string                 `json:"address"`
@@ -359,10 +369,11 @@ func Config(alternativeContext ...string) *Configuration {
 						SettingsFile:      filename,
 						LocalSettingsFile: localFilename,
 						// InfraSettingsFile: infraFilename,
-						Host:       host,
-						Address:    addressStr,
-						StartTime:  startTime,
-						AppPayload: appPayloads,
+						TestSettingsFile: testFilename,
+						Host:             host,
+						Address:          addressStr,
+						StartTime:        startTime,
+						AppPayload:       appPayloads,
 					})
 
 					if err != nil {
