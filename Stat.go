@@ -279,11 +279,21 @@ func average(totalDuration time.Duration, count int64) time.Duration {
 // 	return fmt.Sprintf("%s (%t): %s (%d)", s.key, s.ignoreChildUpdates, utils.HumanTime(s.totalDuration), s.count)
 // }
 
-func RegisterStatsHandlers() {
+func RegisterStatsHandlers(mux ...*http.ServeMux) {
 	registerOnce.Do(func() {
-		http.HandleFunc(statPrefix+"stats", HandleStats)
-		http.HandleFunc(statPrefix+"reset", ResetStats)
-		http.HandleFunc(statPrefix+"", HandleOther)
+		var muxes []*http.ServeMux
+
+		if len(mux) == 0 {
+			muxes = []*http.ServeMux{http.DefaultServeMux}
+		} else {
+			muxes = mux
+		}
+
+		for _, m := range muxes {
+			m.HandleFunc(statPrefix+"stats", HandleStats)
+			m.HandleFunc(statPrefix+"reset", ResetStats)
+			m.HandleFunc(statPrefix+"", HandleOther)
+		}
 	})
 }
 
