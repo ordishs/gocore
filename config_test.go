@@ -398,3 +398,85 @@ func TestTestConfig(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, "test", v)
 }
+
+func TestRequestRecordsDistinctByDefault(t *testing.T) {
+	Config().Get("distinct_key", "ABC")
+	Config().Get("distinct_key", "DEF")
+	Config().Get("distinct_key")
+
+	var count int
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "distinct_key" {
+			count++
+		}
+	}
+	assert.Equal(t, 3, count)
+}
+
+func TestRequestSource(t *testing.T) {
+	Config().Get("src_missing_key")
+
+	os.Setenv("src_env_key", "hello")
+	Config().Get("src_env_key")
+
+	Config().Get("tel")
+
+	src := func(key string) string {
+		for _, r := range Config().requestedSnapshot() {
+			if r.Key == key {
+				return r.Source
+			}
+		}
+		return ""
+	}
+
+	assert.Equal(t, "DEFAULT", src("src_missing_key"))
+	assert.Equal(t, "ENV", src("src_env_key"))
+	assert.Equal(t, "tel", src("tel"))
+}
+
+func TestRequestCountAndTimes(t *testing.T) {
+	find := func() requestRecord {
+		for _, r := range Config().requestedSnapshot() {
+			if r.Key == "times_key" && r.HasDefault && r.DefaultValue == "x" {
+				return r
+			}
+		}
+		return requestRecord{}
+	}
+
+	Config().Get("times_key", "x")
+	r1 := find()
+	require.Equal(t, int64(1), r1.Count)
+
+	time.Sleep(2 * time.Millisecond)
+
+	Config().Get("times_key", "x")
+	r2 := find()
+	assert.Equal(t, int64(2), r2.Count)
+	assert.Equal(t, r1.FirstRequested, r2.FirstRequested)
+	assert.True(t, r2.LastRequested.After(r1.FirstRequested))
+}
+
+func TestRequestedMasksEHE(t *testing.T) {
+	v, ok := Config().Get("secret")
+	require.True(t, ok)
+	assert.Equal(t, "secret", v)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "secret" {
+			assert.Equal(t, eheMask, r.Value)
+			return
+		}
+	}
+	t.Fatal("secret was not recorded")
+}
+
+func TestRequestedTextHeader(t *testing.T) {
+	Config().Get("name")
+	out := Config().Requested()
+	assert.Contains(t, out, "KEY")
+	assert.Contains(t, out, "SOURCE")
+	assert.Contains(t, out, "COUNT")
+	assert.Contains(t, out, "name")
+}

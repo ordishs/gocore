@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"text/tabwriter"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -28,7 +29,7 @@ type Configuration struct {
 	confs      map[string]string
 	context    string
 	app        string
-	requests   map[string]string
+	requests   map[string]*requestRecord
 	rmu        sync.RWMutex
 	mu         sync.RWMutex
 	listeners  []SettingsListener
@@ -47,6 +48,21 @@ var (
 	appMu               sync.RWMutex
 	appPayloadFunctions map[string]func() interface{}
 )
+
+var reEHE = regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
+
+const eheMask = "********************"
+
+type requestRecord struct {
+	Key            string
+	DefaultValue   string
+	HasDefault     bool
+	Value          string
+	Source         string
+	FirstRequested time.Time
+	LastRequested  time.Time
+	Count          int64
+}
 
 func init() {
 	packageName.Store("gocore")
@@ -236,7 +252,7 @@ func Config(alternativeContext ...string) *Configuration {
 		}
 
 		c.confs = make(map[string]string, 0)
-		c.requests = make(map[string]string, 0)
+		c.requests = make(map[string]*requestRecord)
 
 		filename, err := processFile(c.confs, "settings.conf")
 		if err != nil {
@@ -426,7 +442,7 @@ func Config(alternativeContext ...string) *Configuration {
 			ac.confs[k] = v
 		}
 
-		ac.requests = make(map[string]string)
+		ac.requests = make(map[string]*requestRecord)
 
 		alternativeConfigs[alternativeContext[0]] = ac
 
@@ -545,15 +561,48 @@ func (c *Configuration) replaceVariables(value string) string {
 	return value
 }
 
-func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
-	s, ok, _ := c.getInternal(key, defaultValue...)
-	val := strings.TrimPrefix(s, "*EHE*")
+func (c *Configuration) record(key string, hasDefault bool, defaultStr, value, source string) {
+	masked := reEHE.ReplaceAllString(value, eheMask)
+
+	now := time.Now().UTC()
+
+	mapKey := fmt.Sprintf("%s\x00%t\x00%s", key, hasDefault, defaultStr)
 
 	c.rmu.Lock()
-	c.requests[key] = val
-	c.rmu.Unlock()
+	defer c.rmu.Unlock()
 
-	return val, ok
+	if rec, found := c.requests[mapKey]; found {
+		rec.Value = masked
+		rec.Source = source
+		rec.LastRequested = now
+		rec.Count++
+		return
+	}
+
+	c.requests[mapKey] = &requestRecord{
+		Key:            key,
+		DefaultValue:   defaultStr,
+		HasDefault:     hasDefault,
+		Value:          masked,
+		Source:         source,
+		FirstRequested: now,
+		LastRequested:  now,
+		Count:          1,
+	}
+}
+
+func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
+	s, ok, source := c.getInternal(key, defaultValue...)
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = defaultValue[0]
+	}
+
+	c.record(key, hasDefault, defStr, s, source)
+
+	return strings.TrimPrefix(s, "*EHE*"), ok
 }
 
 // Get (key, defaultValue)
@@ -952,34 +1001,54 @@ func (c *Configuration) GetAll() map[string]string {
 	return m
 }
 
+func (c *Configuration) requestedSnapshot() []requestRecord {
+	c.rmu.RLock()
+	defer c.rmu.RUnlock()
+
+	rows := make([]requestRecord, 0, len(c.requests))
+	for _, rec := range c.requests {
+		rows = append(rows, *rec)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Key != rows[j].Key {
+			return rows[i].Key < rows[j].Key
+		}
+		if rows[i].HasDefault != rows[j].HasDefault {
+			return !rows[i].HasDefault
+		}
+		return rows[i].DefaultValue < rows[j].DefaultValue
+	})
+
+	return rows
+}
+
 func (c *Configuration) Requested() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	rows := c.requestedSnapshot()
 
 	var builder strings.Builder
+	w := tabwriter.NewWriter(&builder, 0, 0, 2, ' ', 0)
 
-	keysMap := make(map[string]struct{}, 0)
-	c.rmu.RLock()
-	for item := range c.requests {
-		keysMap[item] = struct{}{}
+	fmt.Fprintln(w, "KEY\tVALUE\tSOURCE\tDEFAULT\tFIRST\tLAST\tCOUNT")
+
+	for _, r := range rows {
+		def := "-"
+		if r.HasDefault {
+			def = fmt.Sprintf("%q", r.DefaultValue)
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
+			r.Key,
+			r.Value,
+			r.Source,
+			def,
+			r.FirstRequested.Format("2006-01-02 15:04:05.000"),
+			r.LastRequested.Format("2006-01-02 15:04:05.000"),
+			r.Count,
+		)
 	}
-	c.rmu.RUnlock()
 
-	// Sort the keys...
-	keysArr := make([]string, 0)
-	for k := range keysMap {
-		keysArr = append(keysArr, k)
-	}
-	sort.Strings(keysArr)
-
-	c.rmu.RLock()
-	for _, k := range keysArr {
-		v := c.requests[k]
-
-		builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
-	}
-	c.rmu.RUnlock()
-
+	_ = w.Flush()
 	return builder.String()
 }
 
