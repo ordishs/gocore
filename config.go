@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"text/tabwriter"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -28,7 +30,7 @@ type Configuration struct {
 	confs      map[string]string
 	context    string
 	app        string
-	requests   map[string]string
+	requests   map[string]*requestRecord
 	rmu        sync.RWMutex
 	mu         sync.RWMutex
 	listeners  []SettingsListener
@@ -47,6 +49,29 @@ var (
 	appMu               sync.RWMutex
 	appPayloadFunctions map[string]func() interface{}
 )
+
+var reEHE = regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
+
+const eheMask = "********************"
+
+func maskSecrets(value string) string {
+	if strings.HasPrefix(value, "*EHE*") {
+		return eheMask
+	}
+
+	return reEHE.ReplaceAllString(value, eheMask)
+}
+
+type requestRecord struct {
+	Key            string
+	DefaultValue   string
+	HasDefault     bool
+	Value          string
+	Source         string
+	FirstRequested time.Time
+	LastRequested  time.Time
+	Count          int64
+}
 
 func init() {
 	packageName.Store("gocore")
@@ -236,7 +261,7 @@ func Config(alternativeContext ...string) *Configuration {
 		}
 
 		c.confs = make(map[string]string, 0)
-		c.requests = make(map[string]string, 0)
+		c.requests = make(map[string]*requestRecord)
 
 		filename, err := processFile(c.confs, "settings.conf")
 		if err != nil {
@@ -426,7 +451,7 @@ func Config(alternativeContext ...string) *Configuration {
 			ac.confs[k] = v
 		}
 
-		ac.requests = make(map[string]string)
+		ac.requests = make(map[string]*requestRecord)
 
 		alternativeConfigs[alternativeContext[0]] = ac
 
@@ -534,8 +559,9 @@ func (c *Configuration) replaceVariables(value string) string {
 		}
 		for _, match := range matches {
 			key := match[2 : len(match)-1]
-			val, ok := c.Get(key)
+			val, ok, _ := c.getInternal(key)
 			if ok {
+				val = strings.TrimPrefix(val, "*EHE*")
 				value = strings.Replace(value, match, val, 1)
 			} else {
 				value = strings.Replace(value, match, "{UNKNOWN}", 1)
@@ -545,15 +571,49 @@ func (c *Configuration) replaceVariables(value string) string {
 	return value
 }
 
-func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
-	s, ok, _ := c.getInternal(key, defaultValue...)
-	val := strings.TrimPrefix(s, "*EHE*")
+func (c *Configuration) record(key string, hasDefault bool, defaultStr, value, source string) {
+	masked := maskSecrets(value)
+	maskedDefault := maskSecrets(defaultStr)
+
+	now := time.Now().UTC()
+
+	mapKey := fmt.Sprintf("%s\x00%t\x00%s", key, hasDefault, defaultStr)
 
 	c.rmu.Lock()
-	c.requests[key] = val
-	c.rmu.Unlock()
+	defer c.rmu.Unlock()
 
-	return val, ok
+	if rec, found := c.requests[mapKey]; found {
+		rec.Value = masked
+		rec.Source = source
+		rec.LastRequested = now
+		rec.Count++
+		return
+	}
+
+	c.requests[mapKey] = &requestRecord{
+		Key:            key,
+		DefaultValue:   maskedDefault,
+		HasDefault:     hasDefault,
+		Value:          masked,
+		Source:         source,
+		FirstRequested: now,
+		LastRequested:  now,
+		Count:          1,
+	}
+}
+
+func (c *Configuration) Get(key string, defaultValue ...string) (string, bool) {
+	s, ok, source := c.getInternal(key, defaultValue...)
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = defaultValue[0]
+	}
+
+	c.record(key, hasDefault, defStr, s, source)
+
+	return strings.TrimPrefix(s, "*EHE*"), ok
 }
 
 // Get (key, defaultValue)
@@ -617,13 +677,25 @@ func (c *Configuration) findValue(key string) (ret string, ok bool, k string) {
 }
 
 func (c *Configuration) GetMulti(key string, sep string, defaultValue ...[]string) ([]string, bool) {
-	str, ok := c.Get(key)
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = strings.Join(defaultValue[0], sep)
+	}
+
 	if str == "" || !ok {
-		if len(defaultValue) > 0 {
+		if hasDefault {
+			c.record(key, hasDefault, defStr, defStr, "DEFAULT")
 			return defaultValue[0], false
 		}
+		c.record(key, hasDefault, defStr, "", "DEFAULT")
 		return []string{}, false
 	}
+
+	c.record(key, hasDefault, defStr, raw, source)
 
 	items := strings.Split(str, sep)
 	for i, item := range items {
@@ -639,14 +711,26 @@ type number interface {
 
 // getNumber is a generic function to handle numeric type conversions
 func getNumber[T number](c *Configuration, key string, defaultValue ...T) (T, bool, error) {
-	str, ok := c.Get(key)
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = fmt.Sprintf("%v", defaultValue[0])
+	}
+
 	if str == "" || !ok {
-		if len(defaultValue) > 0 {
+		if hasDefault {
+			c.record(key, hasDefault, defStr, defStr, "DEFAULT")
 			return defaultValue[0], false, nil
 		}
+		c.record(key, hasDefault, defStr, "", "DEFAULT")
 		var zero T
 		return zero, false, nil
 	}
+
+	c.record(key, hasDefault, defStr, raw, source)
 
 	var result T
 	var err error
@@ -867,13 +951,25 @@ func (c *Configuration) GetFloat64(key string, defaultValue ...float64) (float64
 }
 
 func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
-	str, ok := c.Get(key)
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = strconv.FormatBool(defaultValue[0])
+	}
+
 	if str == "" || !ok {
-		if len(defaultValue) > 0 {
+		if hasDefault {
+			c.record(key, hasDefault, defStr, defStr, "DEFAULT")
 			return defaultValue[0]
 		}
+		c.record(key, hasDefault, defStr, "", "DEFAULT")
 		return false
 	}
+
+	c.record(key, hasDefault, defStr, raw, source)
 
 	i, err := strconv.ParseBool(str)
 	if err != nil {
@@ -884,40 +980,62 @@ func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
 }
 
 func (c *Configuration) GetDuration(key string, defaultValue ...time.Duration) (time.Duration, error, bool) {
-	str, ok := c.Get(key)
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = defaultValue[0].String()
+	}
+
 	if str == "" || !ok {
-		if len(defaultValue) > 0 {
+		if hasDefault {
+			c.record(key, hasDefault, defStr, defStr, "DEFAULT")
 			return defaultValue[0], nil, false
 		}
+		c.record(key, hasDefault, defStr, "", "DEFAULT")
 		return 0, nil, false
 	}
+
+	c.record(key, hasDefault, defStr, raw, source)
 
 	d, err := time.ParseDuration(str)
 	if err != nil {
 		return 0, err, false
 	}
+
 	return d, nil, ok
 }
 
 func (c *Configuration) GetURL(key string, defaultValue ...string) (*url.URL, error, bool) {
-	str, ok := c.Get(key)
-	if str == "" || !ok {
-		if len(defaultValue) > 0 {
-			str = defaultValue[0]
-			ok = false
-		} else {
-			return nil, errors.New("URL is missing"), false
-		}
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = defaultValue[0]
 	}
 
-	// Before we parse the URL, we need to decrypt any EHE tokens.
-	re := regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
-	ehes := re.FindAllString(str, -1)
+	if str == "" || !ok {
+		if hasDefault {
+			str = defaultValue[0]
+			ok = false
+			c.record(key, hasDefault, defStr, str, "DEFAULT")
+		} else {
+			c.record(key, hasDefault, defStr, "", "DEFAULT")
+			return nil, errors.New("URL is missing"), false
+		}
+	} else {
+		c.record(key, hasDefault, defStr, str, source)
+	}
+
+	ehes := reEHE.FindAllString(str, -1)
 
 	for _, ehe := range ehes {
 		decrypted, err := utils.DecryptSetting(ehe)
 		if err != nil {
-			// Ignore.  The password will stay as it was.
 			continue
 		}
 		decrypted = strings.TrimPrefix(decrypted, "*EHE*")
@@ -952,42 +1070,101 @@ func (c *Configuration) GetAll() map[string]string {
 	return m
 }
 
+func (c *Configuration) requestedSnapshot() []requestRecord {
+	c.rmu.RLock()
+	defer c.rmu.RUnlock()
+
+	rows := make([]requestRecord, 0, len(c.requests))
+	for _, rec := range c.requests {
+		rows = append(rows, *rec)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Key != rows[j].Key {
+			return rows[i].Key < rows[j].Key
+		}
+		if rows[i].HasDefault != rows[j].HasDefault {
+			return !rows[i].HasDefault
+		}
+		return rows[i].DefaultValue < rows[j].DefaultValue
+	})
+
+	return rows
+}
+
 func (c *Configuration) Requested() string {
+	rows := c.requestedSnapshot()
+
+	var builder strings.Builder
+	w := tabwriter.NewWriter(&builder, 0, 0, 2, ' ', 0)
+
+	fmt.Fprintln(w, "KEY\tVALUE\tSOURCE\tDEFAULT\tFIRST\tLAST\tCOUNT")
+
+	for _, r := range rows {
+		def := "-"
+		if r.HasDefault {
+			def = fmt.Sprintf("%q", r.DefaultValue)
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
+			r.Key,
+			r.Value,
+			r.Source,
+			def,
+			r.FirstRequested.Format("2006-01-02 15:04:05.000"),
+			r.LastRequested.Format("2006-01-02 15:04:05.000"),
+			r.Count,
+		)
+	}
+
+	_ = w.Flush()
+	return builder.String()
+}
+
+type settingRow struct {
+	Key    string
+	Value  string
+	Source string
+}
+
+func (c *Configuration) settingsSnapshot() []settingRow {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	var builder strings.Builder
-
-	keysMap := make(map[string]struct{}, 0)
-	c.rmu.RLock()
-	for item := range c.requests {
-		keysMap[item] = struct{}{}
+	keysMap := make(map[string]struct{})
+	for item := range c.confs {
+		keysMap[strings.Split(item, ".")[0]] = struct{}{}
 	}
-	c.rmu.RUnlock()
 
-	// Sort the keys...
-	keysArr := make([]string, 0)
+	keysArr := make([]string, 0, len(keysMap))
 	for k := range keysMap {
 		keysArr = append(keysArr, k)
 	}
 	sort.Strings(keysArr)
 
-	c.rmu.RLock()
+	rows := make([]settingRow, 0, len(keysArr))
 	for _, k := range keysArr {
-		v := c.requests[k]
-
-		builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
+		v, _, source := c.getInternal(k)
+		v = maskSecrets(v)
+		rows = append(rows, settingRow{Key: k, Value: v, Source: source})
 	}
-	c.rmu.RUnlock()
 
-	return builder.String()
+	return rows
 }
 
-// Stats comment
-func (c *Configuration) Stats() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+func (c *Configuration) requestCountByKey() map[string]int64 {
+	c.rmu.RLock()
+	defer c.rmu.RUnlock()
 
+	m := make(map[string]int64)
+	for _, rec := range c.requests {
+		m[rec.Key] += rec.Count
+	}
+
+	return m
+}
+
+func (c *Configuration) Stats() string {
 	var builder strings.Builder
 	builder.WriteString("\nCMDLINE\n")
 	builder.WriteString("-------\n")
@@ -1015,32 +1192,12 @@ func (c *Configuration) Stats() string {
 
 	builder.WriteString("\n\nSETTINGS\n--------\n")
 
-	// Get a list of keys that do not have the SESSION_CONTEXT at the end
-	keysMap := make(map[string]struct{}, 0)
-	for item := range c.confs {
-		keysMap[strings.Split(item, ".")[0]] = struct{}{}
-	}
-
-	// Sort the keys...
-	keysArr := make([]string, 0)
-	for k := range keysMap {
-		keysArr = append(keysArr, k)
-	}
-	sort.Strings(keysArr)
-
-	re := regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
-
-	// Now walk through the keys and look them up
-	for _, k := range keysArr {
-		v, _, keyUsed := c.getInternal(k)
-
-		v = re.ReplaceAllString(v, "********************")
-
-		context := strings.Replace(keyUsed, k, "", 1)
+	for _, row := range c.settingsSnapshot() {
+		context := strings.Replace(row.Source, row.Key, "", 1)
 		if context != "" {
-			builder.WriteString(fmt.Sprintf("%s[%s]=%s\n", k, context, v))
+			builder.WriteString(fmt.Sprintf("%s[%s]=%s\n", row.Key, context, row.Value))
 		} else {
-			builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
+			builder.WriteString(fmt.Sprintf("%s=%s\n", row.Key, row.Value))
 		}
 	}
 
@@ -1069,4 +1226,72 @@ func (c *Configuration) RemoveListener(listener SettingsListener) {
 			return
 		}
 	}
+}
+
+func HandleConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	Config().printConfigHTML(w)
+}
+
+func (c *Configuration) printConfigHTML(p io.Writer) {
+	settings := c.settingsSnapshot()
+	counts := c.requestCountByKey()
+	requested := c.requestedSnapshot()
+
+	fmt.Fprintf(p, `<html>
+<head>
+<title>GoCore Configuration</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.4.3/jquery.min.js" integrity="sha512-xqRHwg8Pg0JQ+nne5mBy3SGrGDihpsr5UYuMgIcVj1SMfSKrRJNvu7tFitaK70xDpSsBBIVpTcTGXnmx7/Q2xw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js" integrity="sha512-qzgd5cYSZcosqpzpn7zF2ZId8f/8CHmFKZ8j7mU4OUXTNRd5g+ZHBPsgKEwoqxCtdQvExE5LprwwPAgoicguNg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<link rel='stylesheet' href='%scss/statistics.css' type='text/css' media='print, projection, screen' />
+<script type='text/javascript'>
+$(document).ready(function() {
+	$('#settingsTable').tablesorter({ sortList: [[3,1]], widgets: ['zebra', 'saveSort'], headers: { 0: {sorter:'text'}, 1: {sorter:'text'}, 2: {sorter:'text'}, 3: {sorter:'number'} }, widgetOptions: { saveSort: true } });
+	$('#requestedTable').tablesorter({ sortList: [[0,0]], widgets: ['zebra', 'saveSort'], headers: { 0: {sorter:'text'}, 1: {sorter:'text'}, 2: {sorter:'text'}, 3: {sorter:'text'}, 4: {sorter:'usLongDate'}, 5: {sorter:'usLongDate'}, 6: {sorter:'number'} }, widgetOptions: { saveSort: true } });
+});
+</script>
+</head>
+<body>
+<h1>GoCore Configuration</h1>
+<h2>Settings</h2>
+<table id='settingsTable' class='tablesorter' border='0' cellpadding='0' cellspacing='1'>
+<thead><tr><th>Key</th><th>Value</th><th>Source</th><th>Requests</th></tr></thead>
+<tbody>
+`, statPrefix)
+
+	for _, s := range settings {
+		fmt.Fprintf(p, "<tr><td>%s</td><td>%s</td><td>%s</td><td align='right'>%d</td></tr>\r\n",
+			html.EscapeString(s.Key),
+			html.EscapeString(s.Value),
+			html.EscapeString(s.Source),
+			counts[s.Key],
+		)
+	}
+
+	fmt.Fprintf(p, `</tbody>
+</table>
+<h2>Requested</h2>
+<table id='requestedTable' class='tablesorter' border='0' cellpadding='0' cellspacing='1'>
+<thead><tr><th>Key</th><th>Value</th><th>Source</th><th>Default</th><th>First</th><th>Last</th><th>Count</th></tr></thead>
+<tbody>
+`)
+
+	for _, rq := range requested {
+		def := "-"
+		if rq.HasDefault {
+			def = rq.DefaultValue
+		}
+
+		fmt.Fprintf(p, "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td align='right'>%d</td></tr>\r\n",
+			html.EscapeString(rq.Key),
+			html.EscapeString(rq.Value),
+			html.EscapeString(rq.Source),
+			html.EscapeString(def),
+			rq.FirstRequested.Format("2006-01-02 15:04:05.000"),
+			rq.LastRequested.Format("2006-01-02 15:04:05.000"),
+			rq.Count,
+		)
+	}
+
+	fmt.Fprintf(p, "</tbody>\r\n</table>\r\n</body></html>\r\n")
 }

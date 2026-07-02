@@ -291,6 +291,7 @@ func RegisterStatsHandlers(mux ...*http.ServeMux) {
 
 		for _, m := range muxes {
 			m.HandleFunc(statPrefix+"stats", HandleStats)
+			m.HandleFunc(statPrefix+"config", HandleConfig)
 			m.HandleFunc(statPrefix+"reset", ResetStats)
 			m.HandleFunc(statPrefix+"", HandleOther)
 		}
@@ -471,6 +472,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "<h1>\r\n")
 	fmt.Fprintf(p, "GoCore Statistics\r\n")
 	fmt.Fprintf(p, "</h1>\r\n")
+	fmt.Fprintf(p, "<div><a href='%sconfig'>Configuration</a></div>\r\n", statPrefix)
 	fmt.Fprintf(p, "</td>\r\n")
 	// 		// New button
 	fmt.Fprint(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")

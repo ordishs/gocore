@@ -398,3 +398,192 @@ func TestTestConfig(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, "test", v)
 }
+
+func TestRequestRecordsDistinctByDefault(t *testing.T) {
+	Config().Get("distinct_key", "ABC")
+	Config().Get("distinct_key", "DEF")
+	Config().Get("distinct_key")
+
+	var count int
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "distinct_key" {
+			count++
+		}
+	}
+	assert.Equal(t, 3, count)
+}
+
+func TestRequestSource(t *testing.T) {
+	Config().Get("src_missing_key")
+
+	os.Setenv("src_env_key", "hello")
+	Config().Get("src_env_key")
+
+	Config().Get("tel")
+
+	src := func(key string) string {
+		for _, r := range Config().requestedSnapshot() {
+			if r.Key == key {
+				return r.Source
+			}
+		}
+		return ""
+	}
+
+	assert.Equal(t, "DEFAULT", src("src_missing_key"))
+	assert.Equal(t, "ENV", src("src_env_key"))
+	assert.Equal(t, "tel", src("tel"))
+}
+
+func TestRequestCountAndTimes(t *testing.T) {
+	find := func() requestRecord {
+		for _, r := range Config().requestedSnapshot() {
+			if r.Key == "times_key" && r.HasDefault && r.DefaultValue == "x" {
+				return r
+			}
+		}
+		return requestRecord{}
+	}
+
+	Config().Get("times_key", "x")
+	r1 := find()
+	require.Equal(t, int64(1), r1.Count)
+
+	time.Sleep(2 * time.Millisecond)
+
+	Config().Get("times_key", "x")
+	r2 := find()
+	assert.Equal(t, int64(2), r2.Count)
+	assert.Equal(t, r1.FirstRequested, r2.FirstRequested)
+	assert.True(t, r2.LastRequested.After(r1.FirstRequested))
+}
+
+func TestRequestedMasksEHE(t *testing.T) {
+	v, ok := Config().Get("secret")
+	require.True(t, ok)
+	assert.Equal(t, "secret", v)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "secret" {
+			assert.Equal(t, eheMask, r.Value)
+			return
+		}
+	}
+	t.Fatal("secret was not recorded")
+}
+
+func TestRequestedMasksPunctuatedEHE(t *testing.T) {
+	Config().Set("punct_secret", "*EHE*p@ssw0rd")
+
+	_, _ = Config().Get("punct_secret")
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "punct_secret" {
+			assert.Equal(t, eheMask, r.Value)
+			return
+		}
+	}
+	t.Fatal("punct_secret was not recorded")
+}
+
+func TestRequestedTextHeader(t *testing.T) {
+	Config().Get("name")
+	out := Config().Requested()
+	assert.Contains(t, out, "KEY")
+	assert.Contains(t, out, "SOURCE")
+	assert.Contains(t, out, "COUNT")
+	assert.Contains(t, out, "name")
+}
+
+func TestTypedGetterRecordsDefault(t *testing.T) {
+	Config().GetInt("typed_missing", 99)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "typed_missing" {
+			assert.True(t, r.HasDefault)
+			assert.Equal(t, "99", r.DefaultValue)
+			assert.Equal(t, "99", r.Value)
+			assert.Equal(t, "DEFAULT", r.Source)
+			return
+		}
+	}
+	t.Fatal("typed_missing was not recorded")
+}
+
+func TestBoolGetterRecordsDefault(t *testing.T) {
+	Config().GetBool("bool_missing", true)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "bool_missing" {
+			assert.True(t, r.HasDefault)
+			assert.Equal(t, "true", r.DefaultValue)
+			assert.Equal(t, "DEFAULT", r.Source)
+			return
+		}
+	}
+	t.Fatal("bool_missing was not recorded")
+}
+
+func TestURLGetterRecordsSource(t *testing.T) {
+	_, err, _ := Config().GetURL("url1")
+	require.NoError(t, err)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "url1" {
+			assert.Equal(t, "url1", r.Source)
+			return
+		}
+	}
+	t.Fatal("url1 was not recorded")
+}
+
+func TestDurationGetterRecordsFoundSource(t *testing.T) {
+	_, err, ok := Config().GetDuration("millis")
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "millis" {
+			assert.Equal(t, "millis", r.Source)
+			assert.Equal(t, "2s", r.Value)
+			return
+		}
+	}
+	t.Fatal("millis was not recorded")
+}
+
+func TestReplaceVariablesNoPollution(t *testing.T) {
+	Config().Set("polvar", "hello")
+	Config().Set("uses_polvar", "prefix ${polvar}")
+
+	val, ok := Config().Get("uses_polvar")
+	require.True(t, ok)
+	assert.Equal(t, "prefix hello", val)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "polvar" {
+			t.Fatal("interpolation-only var 'polvar' must not be recorded as requested")
+		}
+	}
+}
+
+func TestStatsFormatUnchanged(t *testing.T) {
+	s := Config().Stats()
+
+	assert.Contains(t, s, "\nCMDLINE\n-------\n")
+	assert.Contains(t, s, "\nSETTINGS\n--------\n")
+	assert.Contains(t, s, "name=Simon\n")
+	assert.Contains(t, s, "tel=20289202982\n")
+	assert.Contains(t, s, "secret="+eheMask+"\n")
+	assert.Contains(t, s, "magicNumber="+eheMask+"\n")
+}
+
+func TestRequestCountByKey(t *testing.T) {
+	Config().Get("reqcount_key")
+	Config().Get("reqcount_key")
+
+	counts := Config().requestCountByKey()
+	assert.GreaterOrEqual(t, counts["reqcount_key"], int64(2))
+	_, present := counts["reqcount_never_requested_key"]
+	assert.False(t, present)
+}

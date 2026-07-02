@@ -36,7 +36,7 @@ func (b *BufferWithClose) Reset() {
 	b.Buffer.Reset()
 }
 
-func TestHandleConfig(t *testing.T) {
+func TestSocketHandleConfig(t *testing.T) {
 	buf := &BufferWithClose{Buffer: &bytes.Buffer{}}
 	socketHandler := NewSocketHandler(Log("test"), buf)
 
