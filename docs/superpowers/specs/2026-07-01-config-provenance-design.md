@@ -73,14 +73,18 @@ type requestRecord struct {
     Key            string
     DefaultValue   string    // caller's default, formatted (e.g. "ABC", "30", "30s")
     HasDefault     bool      // Get("X") vs Get("X","") are distinct entries
-    Value          string    // final value served (masked if Encrypted)
+    Value          string    // final value served (masked when secret)
     Source         string    // "ENV" | resolved context/app key suffix | "DEFAULT"
-    Encrypted      bool      // value originated from an *EHE* token
     FirstRequested time.Time
     LastRequested  time.Time
     Count          int64
 }
 ```
+
+> **As built:** the separate `Encrypted bool` field was dropped. Masking is
+> unconditional at store time via a `maskSecrets()` helper, so a flag is
+> unnecessary — the stored `Value`/`DefaultValue` are already masked and the
+> map never holds a plaintext secret.
 
 `requests` becomes `map[string]*requestRecord`, keyed by a composite of `Key`,
 `HasDefault`, and `DefaultValue` so distinct call-sites (and distinct defaults)
@@ -92,14 +96,22 @@ get distinct rows. Repeated identical calls bump `Count` and update
 Today `getInternal()` both resolves and is the only place source is known;
 `Get()` is the only recorder. Refactor to:
 
-- `getInternal(key)` → `(value, ok, source, encrypted)`: **pure** resolution.
-  No default applied, no recording. `encrypted` is true when the pre-decrypt
-  value contained `*EHE*`.
-- Private `record(key string, hasDefault bool, defaultStr, finalValue, source string, encrypted bool)`:
+- `getInternal(key)` → `(value, ok, source)`: **pure** resolution (existing
+  signature, unchanged). No default applied, no recording.
+- Private `record(key string, hasDefault bool, defaultStr, finalValue, source string)`:
   upserts the map. First-seen stamps `FirstRequested`; every call updates
-  `Value/Source/LastRequested` and bumps `Count`. When `encrypted`, the stored
-  `Value` is masked (`********`) so the map never holds plaintext secrets — this
-  is stronger than `Stats()`, which only masks tokens that *failed* to decrypt.
+  `Value/Source/LastRequested` and bumps `Count`. The stored `Value` and
+  `DefaultValue` are passed through `maskSecrets()` so the map never holds a
+  plaintext secret.
+
+`maskSecrets(v)` masks the whole value when it carries the `*EHE*` prefix (a
+full or undecryptable encrypted setting), and otherwise masks any embedded
+`*EHE*<hex>` token via `reEHE`. Masking the whole prefixed value — rather than
+only the regex-matched span — is what prevents a decrypted secret whose
+plaintext contains punctuation (e.g. `p@ssw0rd`) from leaking its tail. The
+same helper is used by `settingsSnapshot()`, so `Stats()` and both `/config`
+tables mask consistently; output stays byte-for-byte identical for existing
+(alphanumeric-plaintext) secrets.
 
 ### C. Every getter records its own default
 
