@@ -480,3 +480,60 @@ func TestRequestedTextHeader(t *testing.T) {
 	assert.Contains(t, out, "COUNT")
 	assert.Contains(t, out, "name")
 }
+
+func TestTypedGetterRecordsDefault(t *testing.T) {
+	Config().GetInt("typed_missing", 99)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "typed_missing" {
+			assert.True(t, r.HasDefault)
+			assert.Equal(t, "99", r.DefaultValue)
+			assert.Equal(t, "99", r.Value)
+			assert.Equal(t, "DEFAULT", r.Source)
+			return
+		}
+	}
+	t.Fatal("typed_missing was not recorded")
+}
+
+func TestBoolGetterRecordsDefault(t *testing.T) {
+	Config().GetBool("bool_missing", true)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "bool_missing" {
+			assert.True(t, r.HasDefault)
+			assert.Equal(t, "true", r.DefaultValue)
+			assert.Equal(t, "DEFAULT", r.Source)
+			return
+		}
+	}
+	t.Fatal("bool_missing was not recorded")
+}
+
+func TestURLGetterRecordsSource(t *testing.T) {
+	_, err, _ := Config().GetURL("url1")
+	require.NoError(t, err)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "url1" {
+			assert.Equal(t, "url1", r.Source)
+			return
+		}
+	}
+	t.Fatal("url1 was not recorded")
+}
+
+func TestDurationGetterRecordsFoundSource(t *testing.T) {
+	_, err, ok := Config().GetDuration("millis")
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "millis" {
+			assert.Equal(t, "millis", r.Source)
+			assert.Equal(t, "2s", r.Value)
+			return
+		}
+	}
+	t.Fatal("millis was not recorded")
+}

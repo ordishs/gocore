@@ -666,13 +666,25 @@ func (c *Configuration) findValue(key string) (ret string, ok bool, k string) {
 }
 
 func (c *Configuration) GetMulti(key string, sep string, defaultValue ...[]string) ([]string, bool) {
-	str, ok := c.Get(key)
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = strings.Join(defaultValue[0], sep)
+	}
+
 	if str == "" || !ok {
-		if len(defaultValue) > 0 {
+		if hasDefault {
+			c.record(key, hasDefault, defStr, defStr, "DEFAULT")
 			return defaultValue[0], false
 		}
+		c.record(key, hasDefault, defStr, "", "DEFAULT")
 		return []string{}, false
 	}
+
+	c.record(key, hasDefault, defStr, raw, source)
 
 	items := strings.Split(str, sep)
 	for i, item := range items {
@@ -688,14 +700,26 @@ type number interface {
 
 // getNumber is a generic function to handle numeric type conversions
 func getNumber[T number](c *Configuration, key string, defaultValue ...T) (T, bool, error) {
-	str, ok := c.Get(key)
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = fmt.Sprintf("%v", defaultValue[0])
+	}
+
 	if str == "" || !ok {
-		if len(defaultValue) > 0 {
+		if hasDefault {
+			c.record(key, hasDefault, defStr, defStr, "DEFAULT")
 			return defaultValue[0], false, nil
 		}
+		c.record(key, hasDefault, defStr, "", "DEFAULT")
 		var zero T
 		return zero, false, nil
 	}
+
+	c.record(key, hasDefault, defStr, raw, source)
 
 	var result T
 	var err error
@@ -916,13 +940,25 @@ func (c *Configuration) GetFloat64(key string, defaultValue ...float64) (float64
 }
 
 func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
-	str, ok := c.Get(key)
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = strconv.FormatBool(defaultValue[0])
+	}
+
 	if str == "" || !ok {
-		if len(defaultValue) > 0 {
+		if hasDefault {
+			c.record(key, hasDefault, defStr, defStr, "DEFAULT")
 			return defaultValue[0]
 		}
+		c.record(key, hasDefault, defStr, "", "DEFAULT")
 		return false
 	}
+
+	c.record(key, hasDefault, defStr, raw, source)
 
 	i, err := strconv.ParseBool(str)
 	if err != nil {
@@ -933,40 +969,62 @@ func (c *Configuration) GetBool(key string, defaultValue ...bool) bool {
 }
 
 func (c *Configuration) GetDuration(key string, defaultValue ...time.Duration) (time.Duration, error, bool) {
-	str, ok := c.Get(key)
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = defaultValue[0].String()
+	}
+
 	if str == "" || !ok {
-		if len(defaultValue) > 0 {
+		if hasDefault {
+			c.record(key, hasDefault, defStr, defStr, "DEFAULT")
 			return defaultValue[0], nil, false
 		}
+		c.record(key, hasDefault, defStr, "", "DEFAULT")
 		return 0, nil, false
 	}
+
+	c.record(key, hasDefault, defStr, raw, source)
 
 	d, err := time.ParseDuration(str)
 	if err != nil {
 		return 0, err, false
 	}
+
 	return d, nil, ok
 }
 
 func (c *Configuration) GetURL(key string, defaultValue ...string) (*url.URL, error, bool) {
-	str, ok := c.Get(key)
-	if str == "" || !ok {
-		if len(defaultValue) > 0 {
-			str = defaultValue[0]
-			ok = false
-		} else {
-			return nil, errors.New("URL is missing"), false
-		}
+	raw, ok, source := c.getInternal(key)
+	str := strings.TrimPrefix(raw, "*EHE*")
+
+	hasDefault := len(defaultValue) > 0
+	defStr := ""
+	if hasDefault {
+		defStr = defaultValue[0]
 	}
 
-	// Before we parse the URL, we need to decrypt any EHE tokens.
-	re := regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
-	ehes := re.FindAllString(str, -1)
+	if str == "" || !ok {
+		if hasDefault {
+			str = defaultValue[0]
+			ok = false
+			c.record(key, hasDefault, defStr, str, "DEFAULT")
+		} else {
+			c.record(key, hasDefault, defStr, "", "DEFAULT")
+			return nil, errors.New("URL is missing"), false
+		}
+	} else {
+		c.record(key, hasDefault, defStr, str, source)
+	}
+
+	ehes := reEHE.FindAllString(str, -1)
 
 	for _, ehe := range ehes {
 		decrypted, err := utils.DecryptSetting(ehe)
 		if err != nil {
-			// Ignore.  The password will stay as it was.
 			continue
 		}
 		decrypted = strings.TrimPrefix(decrypted, "*EHE*")
