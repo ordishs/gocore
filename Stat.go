@@ -304,6 +304,7 @@ func StartStatsServer(addr string) {
 	RegisterStatsHandlers()
 
 	logger.Infof("Starting StatsServer on http://%s%sstats", addr, statPrefix)
+	logger.Infof("Config available on http://%s%sconfig", addr, statPrefix)
 	var err = http.ListenAndServe(addr, nil)
 
 	if err != nil {
