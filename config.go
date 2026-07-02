@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -1216,4 +1217,72 @@ func (c *Configuration) RemoveListener(listener SettingsListener) {
 			return
 		}
 	}
+}
+
+func HandleConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	Config().printConfigHTML(w)
+}
+
+func (c *Configuration) printConfigHTML(p io.Writer) {
+	settings := c.settingsSnapshot()
+	counts := c.requestCountByKey()
+	requested := c.requestedSnapshot()
+
+	fmt.Fprintf(p, `<html>
+<head>
+<title>GoCore Configuration</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.4.3/jquery.min.js" integrity="sha512-xqRHwg8Pg0JQ+nne5mBy3SGrGDihpsr5UYuMgIcVj1SMfSKrRJNvu7tFitaK70xDpSsBBIVpTcTGXnmx7/Q2xw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js" integrity="sha512-qzgd5cYSZcosqpzpn7zF2ZId8f/8CHmFKZ8j7mU4OUXTNRd5g+ZHBPsgKEwoqxCtdQvExE5LprwwPAgoicguNg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<link rel='stylesheet' href='%scss/statistics.css' type='text/css' media='print, projection, screen' />
+<script type='text/javascript'>
+$(document).ready(function() {
+	$('#settingsTable').tablesorter({ sortList: [[3,1]], widgets: ['zebra', 'saveSort'], headers: { 0: {sorter:'text'}, 1: {sorter:'text'}, 2: {sorter:'text'}, 3: {sorter:'number'} }, widgetOptions: { saveSort: true } });
+	$('#requestedTable').tablesorter({ sortList: [[0,0]], widgets: ['zebra', 'saveSort'], headers: { 0: {sorter:'text'}, 1: {sorter:'text'}, 2: {sorter:'text'}, 3: {sorter:'text'}, 4: {sorter:'usLongDate'}, 5: {sorter:'usLongDate'}, 6: {sorter:'number'} }, widgetOptions: { saveSort: true } });
+});
+</script>
+</head>
+<body>
+<h1>GoCore Configuration</h1>
+<h2>Settings</h2>
+<table id='settingsTable' class='tablesorter' border='0' cellpadding='0' cellspacing='1'>
+<thead><tr><th>Key</th><th>Value</th><th>Source</th><th>Requests</th></tr></thead>
+<tbody>
+`, statPrefix)
+
+	for _, s := range settings {
+		fmt.Fprintf(p, "<tr><td>%s</td><td>%s</td><td>%s</td><td align='right'>%d</td></tr>\r\n",
+			html.EscapeString(s.Key),
+			html.EscapeString(s.Value),
+			html.EscapeString(s.Source),
+			counts[s.Key],
+		)
+	}
+
+	fmt.Fprintf(p, `</tbody>
+</table>
+<h2>Requested</h2>
+<table id='requestedTable' class='tablesorter' border='0' cellpadding='0' cellspacing='1'>
+<thead><tr><th>Key</th><th>Value</th><th>Source</th><th>Default</th><th>First</th><th>Last</th><th>Count</th></tr></thead>
+<tbody>
+`)
+
+	for _, rq := range requested {
+		def := "-"
+		if rq.HasDefault {
+			def = rq.DefaultValue
+		}
+
+		fmt.Fprintf(p, "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td align='right'>%d</td></tr>\r\n",
+			html.EscapeString(rq.Key),
+			html.EscapeString(rq.Value),
+			html.EscapeString(rq.Source),
+			html.EscapeString(def),
+			rq.FirstRequested.Format("2006-01-02 15:04:05.000"),
+			rq.LastRequested.Format("2006-01-02 15:04:05.000"),
+			rq.Count,
+		)
+	}
+
+	fmt.Fprintf(p, "</tbody>\r\n</table>\r\n</body></html>\r\n")
 }
