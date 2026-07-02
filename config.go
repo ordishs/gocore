@@ -1111,11 +1111,50 @@ func (c *Configuration) Requested() string {
 	return builder.String()
 }
 
-// Stats comment
-func (c *Configuration) Stats() string {
+type settingRow struct {
+	Key    string
+	Value  string
+	Source string
+}
+
+func (c *Configuration) settingsSnapshot() []settingRow {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	keysMap := make(map[string]struct{})
+	for item := range c.confs {
+		keysMap[strings.Split(item, ".")[0]] = struct{}{}
+	}
+
+	keysArr := make([]string, 0, len(keysMap))
+	for k := range keysMap {
+		keysArr = append(keysArr, k)
+	}
+	sort.Strings(keysArr)
+
+	rows := make([]settingRow, 0, len(keysArr))
+	for _, k := range keysArr {
+		v, _, source := c.getInternal(k)
+		v = reEHE.ReplaceAllString(v, eheMask)
+		rows = append(rows, settingRow{Key: k, Value: v, Source: source})
+	}
+
+	return rows
+}
+
+func (c *Configuration) requestCountByKey() map[string]int64 {
+	c.rmu.RLock()
+	defer c.rmu.RUnlock()
+
+	m := make(map[string]int64)
+	for _, rec := range c.requests {
+		m[rec.Key] += rec.Count
+	}
+
+	return m
+}
+
+func (c *Configuration) Stats() string {
 	var builder strings.Builder
 	builder.WriteString("\nCMDLINE\n")
 	builder.WriteString("-------\n")
@@ -1143,32 +1182,12 @@ func (c *Configuration) Stats() string {
 
 	builder.WriteString("\n\nSETTINGS\n--------\n")
 
-	// Get a list of keys that do not have the SESSION_CONTEXT at the end
-	keysMap := make(map[string]struct{}, 0)
-	for item := range c.confs {
-		keysMap[strings.Split(item, ".")[0]] = struct{}{}
-	}
-
-	// Sort the keys...
-	keysArr := make([]string, 0)
-	for k := range keysMap {
-		keysArr = append(keysArr, k)
-	}
-	sort.Strings(keysArr)
-
-	re := regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
-
-	// Now walk through the keys and look them up
-	for _, k := range keysArr {
-		v, _, keyUsed := c.getInternal(k)
-
-		v = re.ReplaceAllString(v, "********************")
-
-		context := strings.Replace(keyUsed, k, "", 1)
+	for _, row := range c.settingsSnapshot() {
+		context := strings.Replace(row.Source, row.Key, "", 1)
 		if context != "" {
-			builder.WriteString(fmt.Sprintf("%s[%s]=%s\n", k, context, v))
+			builder.WriteString(fmt.Sprintf("%s[%s]=%s\n", row.Key, context, row.Value))
 		} else {
-			builder.WriteString(fmt.Sprintf("%s=%s\n", k, v))
+			builder.WriteString(fmt.Sprintf("%s=%s\n", row.Key, row.Value))
 		}
 	}
 

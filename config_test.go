@@ -552,3 +552,24 @@ func TestReplaceVariablesNoPollution(t *testing.T) {
 		}
 	}
 }
+
+func TestStatsFormatUnchanged(t *testing.T) {
+	s := Config().Stats()
+
+	assert.Contains(t, s, "\nCMDLINE\n-------\n")
+	assert.Contains(t, s, "\nSETTINGS\n--------\n")
+	assert.Contains(t, s, "name=Simon\n")
+	assert.Contains(t, s, "tel=20289202982\n")
+	assert.Contains(t, s, "secret="+eheMask+"\n")
+	assert.Contains(t, s, "magicNumber="+eheMask+"\n")
+}
+
+func TestRequestCountByKey(t *testing.T) {
+	Config().Get("reqcount_key")
+	Config().Get("reqcount_key")
+
+	counts := Config().requestCountByKey()
+	assert.GreaterOrEqual(t, counts["reqcount_key"], int64(2))
+	_, present := counts["reqcount_never_requested_key"]
+	assert.False(t, present)
+}
