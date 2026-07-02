@@ -550,8 +550,9 @@ func (c *Configuration) replaceVariables(value string) string {
 		}
 		for _, match := range matches {
 			key := match[2 : len(match)-1]
-			val, ok := c.Get(key)
+			val, ok, _ := c.getInternal(key)
 			if ok {
+				val = strings.TrimPrefix(val, "*EHE*")
 				value = strings.Replace(value, match, val, 1)
 			} else {
 				value = strings.Replace(value, match, "{UNKNOWN}", 1)

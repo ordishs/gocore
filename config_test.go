@@ -537,3 +537,18 @@ func TestDurationGetterRecordsFoundSource(t *testing.T) {
 	}
 	t.Fatal("millis was not recorded")
 }
+
+func TestReplaceVariablesNoPollution(t *testing.T) {
+	Config().Set("polvar", "hello")
+	Config().Set("uses_polvar", "prefix ${polvar}")
+
+	val, ok := Config().Get("uses_polvar")
+	require.True(t, ok)
+	assert.Equal(t, "prefix hello", val)
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "polvar" {
+			t.Fatal("interpolation-only var 'polvar' must not be recorded as requested")
+		}
+	}
+}
