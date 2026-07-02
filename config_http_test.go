@@ -25,3 +25,16 @@ func TestHandleConfig(t *testing.T) {
 	assert.Contains(t, body, "Requests")
 	assert.Contains(t, body, "name")
 }
+
+func TestHandleConfigEscapesHTML(t *testing.T) {
+	Config().Set("xss_key", "<b>x</b>")
+	_, _ = Config().Get("xss_key")
+
+	req := httptest.NewRequest(http.MethodGet, "/config", nil)
+	rec := httptest.NewRecorder()
+	HandleConfig(rec, req)
+
+	body := rec.Body.String()
+	assert.Contains(t, body, "&lt;b&gt;x&lt;/b&gt;")
+	assert.NotContains(t, body, "<b>x</b>")
+}

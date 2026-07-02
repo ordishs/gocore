@@ -54,6 +54,14 @@ var reEHE = regexp.MustCompile(`(\*EHE\*[a-zA-Z0-9]+)`)
 
 const eheMask = "********************"
 
+func maskSecrets(value string) string {
+	if strings.HasPrefix(value, "*EHE*") {
+		return eheMask
+	}
+
+	return reEHE.ReplaceAllString(value, eheMask)
+}
+
 type requestRecord struct {
 	Key            string
 	DefaultValue   string
@@ -564,7 +572,8 @@ func (c *Configuration) replaceVariables(value string) string {
 }
 
 func (c *Configuration) record(key string, hasDefault bool, defaultStr, value, source string) {
-	masked := reEHE.ReplaceAllString(value, eheMask)
+	masked := maskSecrets(value)
+	maskedDefault := maskSecrets(defaultStr)
 
 	now := time.Now().UTC()
 
@@ -583,7 +592,7 @@ func (c *Configuration) record(key string, hasDefault bool, defaultStr, value, s
 
 	c.requests[mapKey] = &requestRecord{
 		Key:            key,
-		DefaultValue:   defaultStr,
+		DefaultValue:   maskedDefault,
 		HasDefault:     hasDefault,
 		Value:          masked,
 		Source:         source,
@@ -1136,7 +1145,7 @@ func (c *Configuration) settingsSnapshot() []settingRow {
 	rows := make([]settingRow, 0, len(keysArr))
 	for _, k := range keysArr {
 		v, _, source := c.getInternal(k)
-		v = reEHE.ReplaceAllString(v, eheMask)
+		v = maskSecrets(v)
 		rows = append(rows, settingRow{Key: k, Value: v, Source: source})
 	}
 

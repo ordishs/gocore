@@ -472,6 +472,20 @@ func TestRequestedMasksEHE(t *testing.T) {
 	t.Fatal("secret was not recorded")
 }
 
+func TestRequestedMasksPunctuatedEHE(t *testing.T) {
+	Config().Set("punct_secret", "*EHE*p@ssw0rd")
+
+	_, _ = Config().Get("punct_secret")
+
+	for _, r := range Config().requestedSnapshot() {
+		if r.Key == "punct_secret" {
+			assert.Equal(t, eheMask, r.Value)
+			return
+		}
+	}
+	t.Fatal("punct_secret was not recorded")
+}
+
 func TestRequestedTextHeader(t *testing.T) {
 	Config().Get("name")
 	out := Config().Requested()
