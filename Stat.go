@@ -1,12 +1,17 @@
 package gocore
 
 import (
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -312,19 +317,149 @@ func StartStatsServer(addr string) {
 	}
 }
 
+// statKeyPattern is the grammar for a single statistic key. The set is
+// deliberately wider than the keys gocore itself creates, so that existing
+// consumer keys keep working, but it excludes every character that can
+// terminate an HTML attribute, an element, or a JavaScript string.
+var statKeyPattern = regexp.MustCompile(`^[A-Za-z0-9 ._:@+/#()\[\]-]+$`)
+
+const (
+	maxStatKeySegments = 32
+	maxStatKeyLength   = 128
+)
+
+// parseStatKeys splits and validates the "key" query parameter. It returns the
+// individual keys and whether the whole parameter is well formed. An empty
+// parameter is well formed and selects the root statistic.
+func parseStatKeys(keysParam string) ([]string, bool) {
+	if keysParam == "" {
+		return nil, true
+	}
+
+	keys := strings.Split(keysParam, ",")
+	if len(keys) > maxStatKeySegments {
+		return nil, false
+	}
+
+	for _, key := range keys {
+		if len(key) > maxStatKeyLength || !statKeyPattern.MatchString(key) {
+			return nil, false
+		}
+	}
+
+	return keys, true
+}
+
+// newCSPNonce returns a fresh nonce for the inline scripts of one response.
+func newCSPNonce() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
+func setStatsSecurityHeaders(w http.ResponseWriter, nonce string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", strings.Join([]string{
+		"default-src 'none'",
+		"script-src 'nonce-" + nonce + "' 'self' https://cdnjs.cloudflare.com",
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data:",
+		"base-uri 'none'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+	}, "; "))
+}
+
+func badStatKeyRequest(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusBadRequest)
+	_, _ = w.Write([]byte("invalid key parameter"))
+}
+
 func HandleStats(w http.ResponseWriter, r *http.Request) {
 	keysParam := r.URL.Query().Get("key")
 
-	RootStat.printStatisticsHTML(w, RootStat, keysParam)
+	if _, ok := parseStatKeys(keysParam); !ok {
+		badStatKeyRequest(w)
+		return
+	}
+
+	nonce, err := newCSPNonce()
+	if err != nil {
+		http.Error(w, "could not generate a content security policy nonce", http.StatusInternalServerError)
+		return
+	}
+
+	setStatsSecurityHeaders(w, nonce)
+
+	RootStat.printStatisticsHTML(w, RootStat, keysParam, nonce)
+}
+
+// isSameOriginRequest reports whether a state-changing request came from the
+// stats page itself rather than from another site.
+//
+// The stats handlers hold no session, so there is no token to bind a request
+// to. The check reads the headers that the browser controls instead. A client
+// that sends neither header, such as curl, is allowed through: it is not a
+// browser, so it carries no ambient authority to abuse.
+//
+// Origin is compared by host only. A TLS-terminating proxy in front of the
+// listener would otherwise make every request look cross-origin.
+func isSameOriginRequest(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "", "same-origin", "none":
+		// Absent, from the same origin, or user-initiated.
+	default:
+		// "cross-site" and "same-site" both come from another origin.
+		return false
+	}
+
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+
+	return u.Host == r.Host
 }
 
 func ResetStats(w http.ResponseWriter, r *http.Request) {
-	keysParam := r.URL.Query().Get("key")
+	// Resetting statistics changes server state, so it must not be reachable by
+	// navigation or by an embedded element.
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "reset requires POST", http.StatusMethodNotAllowed)
+
+		return
+	}
+
+	if !isSameOriginRequest(r) {
+		http.Error(w, "cross-origin reset refused", http.StatusForbidden)
+		return
+	}
+
+	keys, ok := parseStatKeys(r.PostFormValue("key"))
+	if !ok {
+		badStatKeyRequest(w)
+		return
+	}
+
 	item := RootStat
 
-	if keysParam != "" {
-		for _, key := range strings.Split(keysParam, ",") {
-			item = item.getChild(key)
+	for _, key := range keys {
+		item = item.getChild(key)
+		if item == nil {
+			http.Error(w, "unknown statistic key", http.StatusNotFound)
+			return
 		}
 	}
 
@@ -382,7 +517,7 @@ func HandleOther(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
-func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
+func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string, nonce string) {
 
 	fmt.Fprintf(p, `
 	<html>
@@ -396,7 +531,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 			<script type='text/javascript' src='%sjs/chili-1.8b.js'></script>
 			<link rel='stylesheet' href='%scss/statistics.css' type='text/css' media='print, projection, screen' />
 
-			<script type='text/javascript'>
+			<script type='text/javascript' nonce='%s'>
 
 				function convertToNanoseconds(duration) {
 					const timeUnits = {
@@ -459,10 +594,17 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 							saveSort: true 
 						} 
 					}); 
+
+					var backButton = document.getElementById('backButton');
+					if (backButton) {
+						backButton.addEventListener('click', function() {
+							history.go(-1);
+						});
+					}
 				})  
 				</script>
 			</head>
-	`, statPrefix, statPrefix)
+	`, statPrefix, statPrefix, nonce)
 
 	fmt.Fprintf(p, "<body>\r\n")
 
@@ -477,9 +619,12 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "</td>\r\n")
 	// 		// New button
 	fmt.Fprint(p, "<td align='right' style='vertical-align:middle;width:50%' >\r\n")
-	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='%sreset' method='get'>\r\n", statPrefix)
-	// 		// Using location.replace here so that the history buffer is not messed up for going back a page.
-	fmt.Fprintf(p, "<input type='button' value='Reset Statistics' onClick='window.location.replace(\"reset?key=%s\");'>\r\n", keysParam)
+	// 		// Reset changes server state, so it is a POST. The key travels in a hidden
+	// 		// field rather than in script source or in the query string. No JavaScript
+	// 		// is involved, so the control works with scripting disabled.
+	fmt.Fprintf(p, "<form border='0' cellpadding='0' action='%sreset' method='post'>\r\n", html.EscapeString(statPrefix))
+	fmt.Fprintf(p, "<input type='hidden' name='key' value='%s'>\r\n", html.EscapeString(keysParam))
+	fmt.Fprintf(p, "<input type='submit' value='Reset Statistics'>\r\n")
 	fmt.Fprintf(p, "</form>\r\n")
 	fmt.Fprintf(p, "</td>\r\n")
 	fmt.Fprintf(p, "</tr>\r\n")
@@ -533,10 +678,13 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 		fmt.Fprintf(p, "<tr>\r\n")
 
 		if hasChildren(&item.childMap) {
-			// childKey := keysParam + key
-			fmt.Fprintf(p, "<td><a href='%sstats?key=%s'>%s</a></td>\r\n", statPrefix, keysParam+keyI.(string), keyI.(string))
+			fmt.Fprintf(p, "<td><a href='%sstats?key=%s'>%s</a></td>\r\n",
+				html.EscapeString(statPrefix),
+				url.QueryEscape(keysParam+keyI.(string)),
+				html.EscapeString(keyI.(string)),
+			)
 		} else {
-			fmt.Fprintf(p, "<td>%s</td>\r\n", keyI.(string))
+			fmt.Fprintf(p, "<td>%s</td>\r\n", html.EscapeString(keyI.(string)))
 		}
 
 		fmt.Fprintf(p, "<td align='right'>%s</td>\r\n", addThousandsOperator(item.count))
@@ -567,7 +715,7 @@ func (s *Stat) printStatisticsHTML(p io.Writer, root *Stat, keysParam string) {
 	fmt.Fprintf(p, "<p>Report time: %s</p>\r\n", now.Format("2006-01-02 15:04:05.000"))
 	fmt.Fprintf(p, "<div align='right'>")
 	fmt.Fprintf(p, "<form>\r\n\r\n")
-	fmt.Fprintf(p, "<input type='button' value='  Back  ' onClick='history.go(-1)'>\r\n")
+	fmt.Fprintf(p, "<input type='button' id='backButton' value='  Back  '>\r\n")
 	fmt.Fprintf(p, "</form>\r\n")
 	fmt.Fprintf(p, "</div>\r\n")
 	fmt.Fprintf(p, "</body></html>\r\n")
