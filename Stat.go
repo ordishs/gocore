@@ -8,6 +8,7 @@ import (
 	"html"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -303,10 +304,67 @@ func RegisterStatsHandlers(mux ...*http.ServeMux) {
 	})
 }
 
+// isLoopbackListenHost reports whether a listener bound to host is reachable
+// only from this machine. An empty host means the listener takes every
+// interface, so it is not loopback. The check never resolves DNS, so a name
+// other than "localhost" counts as exposed.
+func isLoopbackListenHost(host string) bool {
+	if host == "" {
+		return false
+	}
+
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+
+	return false
+}
+
+// statsListenWarning returns the warning to log before the stats server binds
+// addr. It returns an empty string when the address is loopback only.
+//
+// The stats handlers carry no authentication. RegisterStatsHandlers also mounts
+// the configuration dump, which renders every setting that is not stored in
+// *EHE* form. Both belong on a loopback listener.
+func statsListenWarning(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// The address is not a host:port pair that we can read. Assume the
+		// listener is exposed rather than assume it is safe.
+		host = ""
+	}
+
+	if isLoopbackListenHost(host) {
+		return ""
+	}
+
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "SECURITY: the stats server is binding %q, which is reachable from outside this host. ", addr)
+
+	if host == "" || net.ParseIP(host).IsUnspecified() {
+		b.WriteString("A bare port or an unspecified host binds every network interface. ")
+	}
+
+	fmt.Fprintf(&b, "%sstats, %sconfig and %sreset need no authentication. ", statPrefix, statPrefix, statPrefix)
+	fmt.Fprintf(&b, "%sconfig renders every configured setting, and it masks only values held in *EHE* form. ", statPrefix)
+	b.WriteString("Bind a loopback address, or put the listener behind authentication.")
+
+	return b.String()
+}
+
 func StartStatsServer(addr string) {
 	logger := Log("stats")
 
 	RegisterStatsHandlers()
+
+	if warning := statsListenWarning(addr); warning != "" {
+		logger.Warnf("%s", warning)
+	}
 
 	logger.Infof("Starting StatsServer on http://%s%sstats", addr, statPrefix)
 	logger.Infof("Config available on http://%s%sconfig", addr, statPrefix)
